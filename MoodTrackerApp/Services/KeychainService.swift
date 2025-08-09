@@ -4,6 +4,7 @@ import Security
 #endif
 
 /// 简单的 Keychain 封装，用于安全存储敏感信息，例如 API Key。
+@MainActor
 final class KeychainService {
     static let shared = KeychainService()
     private init() {}
