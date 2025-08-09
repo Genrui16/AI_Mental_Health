@@ -15,7 +15,7 @@ struct HealthDataView: View {
                 Text("今日步数：\(Int(stepCount)) 步")
                     .font(.headline)
                 // 使用 specifier 避免复杂的字符串插值导致的编译错误
-                Text("睡眠时长：\(sleepHours, specifier: \"%.1f\") 小时")
+                Text("睡眠时长：\(sleepHours, specifier: "%.1f") 小时")
                 Text("平均心率：\(Int(averageHeartRate)) 次/分")
                 Button("重新同步数据") {
                     fetchData()
