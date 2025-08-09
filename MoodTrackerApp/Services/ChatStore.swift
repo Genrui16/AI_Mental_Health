@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class ChatStore {
     static let shared = ChatStore()
     private let fileURL: URL

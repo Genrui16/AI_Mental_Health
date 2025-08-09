@@ -6,6 +6,7 @@ import Foundation
 #endif
 
 /// 负责与 ChatGPT 等 AI 服务通信的服务类。
+@MainActor
 final class AIService {
     static let shared = AIService()
     private init() {}
@@ -14,7 +15,7 @@ final class AIService {
     private let model = "gpt-3.5-turbo"
 
     /// 根据既往日志生成每日个性化建议。
-    func getDailyScheduleSuggestions(from logs: [MoodLog], completion: @escaping ([ScheduleItem]) -> Void) {
+    func getDailyScheduleSuggestions(from logs: [MoodLog], completion: @Sendable @escaping ([ScheduleItem]) -> Void) {
         guard let apiKey = KeychainService.shared.getAPIKey() else {
             completion([])
             return

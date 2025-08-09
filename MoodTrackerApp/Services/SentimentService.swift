@@ -1,6 +1,7 @@
 import Foundation
 import NaturalLanguage
 
+@MainActor
 final class SentimentService {
     static let shared = SentimentService()
     private init() {}

@@ -2,6 +2,8 @@ import Foundation
 import Speech
 import AVFoundation
 
+@available(macOS 10.15, *)
+@MainActor
 final class SpeechService: NSObject, ObservableObject {
     @Published var transcribedText: String = ""
     @Published var isRecording: Bool = false
