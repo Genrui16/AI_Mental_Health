@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// 时间轴视图，左侧展示 AI 建议的日程，右侧记录用户的实际活动。
+/// 时间轴视图，左侧展示 AI 建议的日程，右侧记录用户的实际活动、心情和物质摄入。
 struct TimelineView: View {
+    @EnvironmentObject var appData: AppData
     @State private var suggestedEvents: [ScheduleItem] = []
-    @State private var actualEvents: [ScheduleItem] = []
+    /// 当前展示的新增表单类型。
+    @State private var activeSheet: EntryType?
 
     var body: some View {
         NavigationView {
@@ -41,21 +43,41 @@ struct TimelineView: View {
             .navigationTitle("时间轴")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: generateSuggestions) {
-                        Image(systemName: "arrow.clockwise")
+                    HStack {
+                        Menu {
+                            Button("新增活动") { activeSheet = .activity }
+                            Button("新增心情记录") { activeSheet = .mood }
+                            Button("新增物质摄入") { activeSheet = .substance }
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+
+                        Button(action: generateSuggestions) {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .accessibilityLabel("刷新建议日程")
                     }
-                    .accessibilityLabel("刷新建议日程")
                 }
             }
         }
-        .onAppear {
-            // 初始加载示例数据，可以在后续集成时从数据库加载。
-            actualEvents = [
-                ScheduleItem(time: Date(), title: "早餐和服药"),
-                ScheduleItem(time: Date().addingTimeInterval(1800), title: "早间散步"),
-                ScheduleItem(time: Date().addingTimeInterval(3600 * 2), title: "工作/学习")
-            ]
+        .sheet(item: $activeSheet) { item in
+            switch item {
+            case .activity:
+                NewActivityView().environmentObject(appData)
+            case .mood:
+                NewMoodLogView().environmentObject(appData)
+            case .substance:
+                NewSubstanceEntryView().environmentObject(appData)
+            }
         }
+    }
+
+    /// 将用户记录转换为时间轴显示的列表。
+    private var actualEvents: [ScheduleItem] {
+        let activities = appData.activities.map { ScheduleItem(time: $0.time, title: $0.name) }
+        let moods = appData.moodLogs.map { ScheduleItem(time: $0.time, title: "心情: \($0.mood)") }
+        let substances = appData.substances.map { ScheduleItem(time: $0.time, title: "摄入: \($0.type.rawValue)") }
+        return (activities + moods + substances).sorted { $0.time < $1.time }
     }
 
     /// 刷新建议日程，可在此集成 ChatGPT API 获取个性化建议。
@@ -70,11 +92,17 @@ struct TimelineView: View {
     }
 }
 
+/// 新增表单类型。
+private enum EntryType: Identifiable {
+    case activity, mood, substance
+    var id: Int { hashValue }
+}
+
 // MARK: - 预览
 #if DEBUG
 struct TimelineView_Previews: PreviewProvider {
     static var previews: some View {
-        TimelineView()
+        TimelineView().environmentObject(AppData())
     }
 }
 #endif

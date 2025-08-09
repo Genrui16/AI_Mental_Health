@@ -11,6 +11,8 @@ struct ScheduleItem: Identifiable {
 /// 活动记录，例如运动、冥想等。
 struct Activity: Identifiable {
     let id = UUID()
+    /// 活动发生的时间。
+    var time: Date
     var name: String
     var duration: TimeInterval
     /// 活动强度，1~3 代表低、中、高强度，可根据需要调整。
@@ -29,6 +31,8 @@ struct MoodLog: Identifiable {
 /// 摄入的物质条目，例如尼古丁、大麻、咖啡因等。
 struct SubstanceEntry: Identifiable {
     let id = UUID()
+    /// 摄入的时间。
+    var time: Date
     var type: SubstanceType
     var amount: Double
     var unit: String
