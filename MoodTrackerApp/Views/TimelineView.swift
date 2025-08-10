@@ -70,7 +70,7 @@ struct TimelineView: View {
             }
             .navigationTitle("时间轴")
             .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: toolbarPlacement) {
                     Button(action: generateSuggestions) {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -128,6 +128,15 @@ struct TimelineView: View {
     private func delete(_ event: ActualEvent) {
         viewContext.delete(event)
         try? viewContext.save()
+    }
+
+    /// 根据当前平台选择合适的工具栏位置。
+    private var toolbarPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        return .navigationBarTrailing
+        #else
+        return .automatic
+        #endif
     }
 }
 
