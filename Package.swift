@@ -7,15 +7,9 @@ let package = Package(
         .iOS(.v16)
     ],
     products: [
-        .iOSApplication(
+        .executable(
             name: "MoodTrackerApp",
-            targets: ["MoodTrackerApp"],
-            bundleIdentifier: "com.example.MoodTrackerApp",
-            teamIdentifier: "ABCDE12345",
-            displayVersion: "1.0",
-            bundleVersion: "1",
-            infoPlist: .file("MoodTrackerApp/Info.plist"),
-            appCategory: .healthcareAndFitness
+            targets: ["MoodTrackerApp"]
         )
     ],
     targets: [
