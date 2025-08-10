@@ -6,14 +6,18 @@ final class SentimentService {
     static let shared = SentimentService()
     private init() {}
     
-    func analyze(_ text: String) -> Double {
-        let tagger = NLTagger(tagSchemes: [.sentimentScore])
-        tagger.string = text
-        let (tag, _) = tagger.tag(at: text.startIndex, unit: .paragraph, scheme: .sentimentScore)
-        if let scoreString = tag?.rawValue, let score = Double(scoreString) {
-            return score
+    func analyze(_ text: String) -> Double? {
+        if #available(iOS 13.0, macOS 10.15, *) {
+            let tagger = NLTagger(tagSchemes: [.sentimentScore])
+            tagger.string = text
+            let (tag, _) = tagger.tag(at: text.startIndex, unit: .paragraph, scheme: .sentimentScore)
+            if let scoreString = tag?.rawValue, let score = Double(scoreString) {
+                return score
+            }
+            return 0.0
+        } else {
+            return nil
         }
-        return 0.0
     }
     
     func label(for score: Double) -> String {
