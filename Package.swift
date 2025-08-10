@@ -4,10 +4,19 @@ import PackageDescription
 let package = Package(
     name: "MoodTrackerAppPackage",
     platforms: [
-        .macOS(.v13)
+        .iOS(.v16)
     ],
     products: [
-        .executable(name: "MoodTrackerApp", targets: ["MoodTrackerApp"])
+        .iOSApplication(
+            name: "MoodTrackerApp",
+            targets: ["MoodTrackerApp"],
+            bundleIdentifier: "com.example.MoodTrackerApp",
+            teamIdentifier: "ABCDE12345",
+            displayVersion: "1.0",
+            bundleVersion: "1",
+            infoPlist: .file("MoodTrackerApp/Info.plist"),
+            appCategory: .healthcareAndFitness
+        )
     ],
     targets: [
         .executableTarget(
