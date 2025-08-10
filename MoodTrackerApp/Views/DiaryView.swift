@@ -13,9 +13,69 @@ struct DiaryView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                messageList
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(chatHistory.enumerated()), id: \.element.id) { index, message in
+                                HStack {
+                                    if message.role == .user {
+                                        Spacer()
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            Text(message.text)
+                                                .padding(8)
+                                                .background(Color.blue.opacity(0.1))
+                                                .cornerRadius(8)
+                                            if let sentiment = message.sentiment {
+                                                Text("情绪: \(SentimentService.shared.label(for: sentiment)) (\(String(format: "%.2f", sentiment)))")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(message.text)
+                                                .padding(8)
+                                                .background(Color.gray.opacity(0.1))
+                                                .cornerRadius(8)
+                                        }
+                                        Spacer()
+                                    }
+                                }
+                                .id(index)
+                            }
+                        }
+                        .padding()
+                    }
+                    .onChange(of: chatHistory) { _ in
+                        if let last = chatHistory.indices.last {
+                            proxy.scrollTo(last, anchor: .bottom)
+                        }
+                    }
+                }
+
                 Divider()
-                inputBar
+                HStack {
+                    TextField("写下你的想法...", text: $diaryText, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(3)
+                    Button(action: sendMessage) {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 20))
+                    }
+                    .disabled(diaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .padding(.leading, 8)
+                    Button(action: toggleRecording) {
+                        Image(systemName: speechService.isRecording ? "stop.circle" : "mic.fill")
+                            .font(.system(size: 20))
+                    }
+                    .padding(.leading, 4)
+                    Button(action: { showRatingSheet = true }) {
+                        Image(systemName: "face.smiling")
+                            .font(.system(size: 20))
+                    }
+                    .padding(.leading, 4)
+                }
+                .padding()
             }
             .navigationTitle("心理日记")
             .toolbar {
@@ -28,99 +88,17 @@ struct DiaryView: View {
                 diaryText = text
             }
             .sheet(isPresented: $showRatingSheet) {
-                ratingSheet
-            }
-        }
-    }
-
-    // MARK: - 子视图
-
-    /// 聊天消息列表
-    private var messageList: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(chatHistory.enumerated()), id: \.element.id) { index, message in
-                        messageView(for: message)
-                            .id(index)
-                    }
+                VStack(spacing: 20) {
+                    Text("情绪评分")
+                        .font(.title3)
+                    Slider(value: $rating, in: 1...10, step: 1)
+                    Text("评分: \(Int(rating))")
+                    Button("提交", action: sendRating)
+                        .padding(.top, 10)
                 }
                 .padding()
             }
-            .onChange(of: chatHistory) { _ in
-                if let last = chatHistory.indices.last {
-                    proxy.scrollTo(last, anchor: .bottom)
-                }
-            }
         }
-    }
-
-    /// 单条消息视图
-    @ViewBuilder
-    private func messageView(for message: ChatMessage) -> some View {
-        HStack {
-            if message.role == .user {
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(message.text)
-                        .padding(8)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
-                    if let sentiment = message.sentiment {
-                        Text("情绪: \(SentimentService.shared.label(for: sentiment)) (\(String(format: \"%.2f\", sentiment)))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(message.text)
-                        .padding(8)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
-                }
-                Spacer()
-            }
-        }
-    }
-
-    /// 输入栏
-    private var inputBar: some View {
-        HStack {
-            TextField("写下你的想法...", text: $diaryText, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(3)
-            Button(action: sendMessage) {
-                Image(systemName: "paperplane.fill")
-                    .font(.system(size: 20))
-            }
-            .disabled(diaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .padding(.leading, 8)
-            Button(action: toggleRecording) {
-                Image(systemName: speechService.isRecording ? "stop.circle" : "mic.fill")
-                    .font(.system(size: 20))
-            }
-            .padding(.leading, 4)
-            Button(action: { showRatingSheet = true }) {
-                Image(systemName: "face.smiling")
-                    .font(.system(size: 20))
-            }
-            .padding(.leading, 4)
-        }
-        .padding()
-    }
-
-    /// 评分表单
-    private var ratingSheet: some View {
-        VStack(spacing: 20) {
-            Text("情绪评分")
-                .font(.title3)
-            Slider(value: $rating, in: 1...10, step: 1)
-            Text("评分: \(Int(rating))")
-            Button("提交", action: sendRating)
-                .padding(.top, 10)
-        }
-        .padding()
     }
 
     /// 发送用户输入的文本，并进行情感分析和持久化。
