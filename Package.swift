@@ -1,6 +1,5 @@
 // swift-tools-version: 5.9
 import PackageDescription
-import AppleProductTypes
 
 let package = Package(
     name: "MoodTrackerAppPackage",
@@ -15,7 +14,7 @@ let package = Package(
             teamIdentifier: "ABCDE12345",
             displayVersion: "1.0",
             bundleVersion: "1",
-            infoPlist: .file(path: "MoodTrackerApp/Info.plist"),
+            infoPlist: .file("MoodTrackerApp/Info.plist"),
             appCategory: .healthcareAndFitness
         )
     ],
