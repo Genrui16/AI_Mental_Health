@@ -2,7 +2,7 @@ import Foundation
 import Speech
 import AVFoundation
 
-@available(iOS 15.0, macOS 10.15, *)
+@available(macOS 10.15, *)
 @MainActor
 final class SpeechService: NSObject, ObservableObject {
     @Published var transcribedText: String = ""
