@@ -11,8 +11,11 @@ final class ChatStore {
     }
     
     func loadSessions() -> [ChatSession] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        return (try? JSONDecoder().decode([ChatSession].self, from: data)) ?? []
+        guard let data = try? Data(contentsOf: fileURL),
+              let sessions = try? JSONDecoder().decode([ChatSession].self, from: data) else {
+            return []
+        }
+        return sessions.sorted { $0.date < $1.date }
     }
     
     func saveSession(_ session: ChatSession) {
@@ -22,7 +25,7 @@ final class ChatStore {
         } else {
             sessions.append(session)
         }
-        if let data = try? JSONEncoder().encode(sessions) {
+        if let data = try? JSONEncoder().encode(sessions.sorted { $0.date < $1.date }) {
             try? data.write(to: fileURL)
         }
     }

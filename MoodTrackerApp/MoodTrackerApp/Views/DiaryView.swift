@@ -11,6 +11,12 @@ struct DiaryView: View {
     @State private var showRatingSheet = false
     @State private var rating: Double = 5
 
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -39,6 +45,9 @@ struct DiaryView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    Text(dateFormatter.string(from: currentSession.date))
+                        .font(.headline)
+                        .padding(.bottom, 4)
                     ForEach(Array(chatHistory.enumerated()), id: \.element.id) { index, message in
                         chatRow(message)
                             .id(index)
@@ -163,13 +172,14 @@ struct DiaryView: View {
         }
     }
 
-    /// 加载最近的会话。
+    /// 加载或创建当天的会话。
     private func loadSession() {
+        let today = Date()
         let sessions = ChatStore.shared.loadSessions()
-        if let last = sessions.last {
-            currentSession = last
+        if let existing = sessions.first(where: { Calendar.current.isDate($0.date, inSameDayAs: today) }) {
+            currentSession = existing
         } else {
-            currentSession = ChatSession()
+            currentSession = ChatSession(date: today)
             ChatStore.shared.saveSession(currentSession)
         }
         chatHistory = currentSession.messages
@@ -178,7 +188,7 @@ struct DiaryView: View {
     /// 开始新的会话。
     private func newSession() {
         ChatStore.shared.saveSession(currentSession)
-        currentSession = ChatSession()
+        currentSession = ChatSession(date: Date())
         chatHistory = []
         ChatStore.shared.saveSession(currentSession)
     }
