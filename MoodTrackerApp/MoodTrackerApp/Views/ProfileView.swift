@@ -6,6 +6,9 @@ struct ProfileView: View {
     var body: some View {
         NavigationView {
             List {
+                NavigationLink(destination: DiaryHistoryView()) {
+                    Label("日记记录", systemImage: "book")
+                }
                 NavigationLink(destination: HealthDataView()) {
                     Label("健康数据同步", systemImage: "heart.fill")
                 }

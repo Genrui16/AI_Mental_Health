@@ -22,52 +22,58 @@ struct TimelineView: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                LazyVStack(alignment: .leading) {
-                    // 显示建议日程和实际日程，两列对齐
-                    ForEach(0..<max(suggestedEvents.count, actualEvents.count), id: \.self) { index in
-                        HStack(alignment: .top, spacing: 16) {
-                            // 建议日程列
-                            VStack(alignment: .leading) {
-                                if index < suggestedEvents.count {
-                                    let item = suggestedEvents[index]
-                                    ScheduleRow(item: ScheduleItem(time: item.time, title: item.title, notes: item.notes ?? ""), isSuggested: true)
-                                } else {
-                                    Spacer().frame(height: 0)
+                ZStack {
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.3))
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                    LazyVStack(alignment: .leading) {
+                        // 显示建议日程和实际日程，两列对齐
+                        ForEach(0..<max(suggestedEvents.count, actualEvents.count), id: \.self) { index in
+                            HStack(alignment: .top, spacing: 16) {
+                                // 建议日程列
+                                VStack(alignment: .leading) {
+                                    if index < suggestedEvents.count {
+                                        let item = suggestedEvents[index]
+                                        ScheduleRow(item: ScheduleItem(time: item.time, title: item.title, notes: item.notes ?? ""), isSuggested: true)
+                                    } else {
+                                        Spacer().frame(height: 0)
+                                    }
                                 }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                            // 实际活动列
-                            VStack(alignment: .leading) {
-                                if index < actualEvents.count {
-                                    let event = actualEvents[index]
-                                    ScheduleRow(item: ScheduleItem(time: event.time, title: event.title, notes: event.notes ?? ""), isSuggested: false)
-                                        .contextMenu {
-                                            Button("编辑") {
+                                // 实际活动列
+                                VStack(alignment: .leading) {
+                                    if index < actualEvents.count {
+                                        let event = actualEvents[index]
+                                        ScheduleRow(item: ScheduleItem(time: event.time, title: event.title, notes: event.notes ?? ""), isSuggested: false)
+                                            .contextMenu {
+                                                Button("编辑") {
+                                                    editingEvent = event
+                                                    showingEditor = true
+                                                }
+                                                Button(role: .destructive) {
+                                                    delete(event)
+                                                } label: {
+                                                    Text("删除")
+                                                }
+                                            }
+                                            .onTapGesture {
                                                 editingEvent = event
                                                 showingEditor = true
                                             }
-                                            Button(role: .destructive) {
-                                                delete(event)
-                                            } label: {
-                                                Text("删除")
-                                            }
-                                        }
-                                        .onTapGesture {
-                                            editingEvent = event
-                                            showingEditor = true
-                                        }
-                                } else {
-                                    // 为了视觉对齐，当没有记录时可以留空
-                                    Spacer().frame(height: 0)
+                                    } else {
+                                        // 为了视觉对齐，当没有记录时可以留空
+                                        Spacer().frame(height: 0)
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
                     }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("时间轴")
             .toolbar {
