@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import CoreData
 
@@ -13,3 +14,4 @@ struct MoodTrackerApp: App {
         }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import CoreData
 
@@ -52,3 +53,4 @@ struct EventEditView: View {
         }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// “我的”页面，提供健康数据同步、心情趋势等入口。
@@ -25,4 +26,5 @@ struct ProfileView_Previews: PreviewProvider {
         ProfileView()
     }
 }
+#endif
 #endif

@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// 主视图，包含底部标签栏用于在不同模块间切换。
@@ -32,4 +33,5 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
     }
 }
+#endif
 #endif
