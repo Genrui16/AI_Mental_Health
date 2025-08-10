@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// 健康数据同步视图，用户可在此授权并查看从 Apple Health 获取的数据。
@@ -83,4 +84,5 @@ struct HealthDataView_Previews: PreviewProvider {
         }
     }
 }
+#endif
 #endif

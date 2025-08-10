@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import NaturalLanguage
 
@@ -169,4 +170,5 @@ struct DiaryView_Previews: PreviewProvider {
         DiaryView()
     }
 }
+#endif
 #endif

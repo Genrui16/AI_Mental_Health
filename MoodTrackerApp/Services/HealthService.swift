@@ -1,8 +1,9 @@
+#if canImport(HealthKit)
 import Foundation
 import HealthKit
 
 /// 封装 Apple Health 数据交互的服务，支持请求授权和获取数据。
-@available(iOS 15.0, *)
+@available(macOS 13.0, iOS 15.0, *)
 @MainActor
 final class HealthService {
     static let shared = HealthService()
@@ -79,3 +80,4 @@ final class HealthService {
         healthStore.execute(query)
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import CoreData
 
@@ -147,4 +148,5 @@ struct TimelineView_Previews: PreviewProvider {
         TimelineView()
     }
 }
+#endif
 #endif

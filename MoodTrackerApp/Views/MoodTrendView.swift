@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import Charts
 
@@ -115,4 +116,5 @@ struct MoodTrendView_Previews: PreviewProvider {
         }
     }
 }
+#endif
 #endif

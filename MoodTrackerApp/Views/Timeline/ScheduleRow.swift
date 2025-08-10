@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 /// 单个日程项视图，用于在时间轴中显示建议或实际活动。
@@ -42,4 +43,5 @@ struct ScheduleRow_Previews: PreviewProvider {
         .previewLayout(.sizeThatFits)
     }
 }
+#endif
 #endif
