@@ -148,14 +148,16 @@ struct TimelineView: View {
         requestNotificationPermissionIfNeeded()
         let logs = MoodLogStore.shared.recentLogs(days: 7)
         var contextPieces: [String] = []
-        let yesterdayKey = completionCountKey(for: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
-        let yesterdayCompleted = UserDefaults.standard.integer(forKey: yesterdayKey)
-        contextPieces.append("昨日完成建议数: \(yesterdayCompleted)")
+        let exec = executionSummary()
+        if !exec.isEmpty { contextPieces.append(exec) }
+        let userSummary = UserSummaryStore.shared.loadSummary()
+        if !userSummary.isEmpty { contextPieces.append("用户摘要: \(userSummary)") }
 
         if #available(iOS 15.0, *) {
             let group = DispatchGroup()
             var steps: Double = 0
             var sleep: Double = 0
+            var heart: Double = 0
             group.enter()
             HealthService.shared.fetchStepCount { count in
                 steps = count
@@ -166,11 +168,15 @@ struct TimelineView: View {
                 sleep = hours
                 group.leave()
             }
+            group.enter()
+            HealthService.shared.fetchHeartRate { rate in
+                heart = rate
+                group.leave()
+            }
             group.notify(queue: .main) {
-                if steps > 0 || sleep > 0 {
-                    contextPieces.append("步数: \(Int(steps))")
-                    contextPieces.append(String(format: "睡眠: %.1f小时", sleep))
-                }
+                if steps > 0 { contextPieces.append("步数: \(Int(steps))") }
+                if sleep > 0 { contextPieces.append(String(format: "睡眠: %.1f小时", sleep)) }
+                if heart > 0 { contextPieces.append(String(format: "心率: %.0f", heart)) }
                 requestSuggestions(logs: logs, context: contextPieces.joined(separator: "\n"))
             }
         } else {
@@ -209,6 +215,29 @@ struct TimelineView: View {
                 }
             }
         }
+    }
+
+    /// 生成昨日执行情况的简要总结。
+    private func executionSummary() -> String {
+        let calendar = Calendar.current
+        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) else { return "" }
+        let start = calendar.startOfDay(for: yesterday)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return "" }
+        let sugg = suggestedEvents.filter { $0.time >= start && $0.time < end }
+        let actual = actualEvents.filter { $0.time >= start && $0.time < end }
+        guard !sugg.isEmpty else { return "" }
+        var missed: [String] = []
+        for s in sugg {
+            if !actual.contains(where: { $0.title == s.title }) {
+                missed.append(s.title)
+            }
+        }
+        let completed = sugg.count - missed.count
+        var summary = "昨日建议\(sugg.count)项, 完成\(completed)项"
+        if !missed.isEmpty {
+            summary += "，未完成: " + missed.joined(separator: ",")
+        }
+        return summary
     }
 
     private func delete(_ event: ActualEvent) {

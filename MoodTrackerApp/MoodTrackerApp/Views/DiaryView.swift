@@ -176,7 +176,8 @@ struct DiaryView: View {
         chatHistory = currentSession.messages
 
         // 调用 AI 服务，并传递最近的对话历史（排除占位消息）
-        AIService.shared.chat(with: Array(currentSession.messages.dropLast())) { result in
+        let summary = UserSummaryStore.shared.loadSummary()
+        AIService.shared.chat(with: Array(currentSession.messages.dropLast()), userSummary: summary) { result in
             DispatchQueue.main.async {
                 if let index = self.currentSession.messages.firstIndex(where: { $0.id == placeholder.id }) {
                     self.currentSession.messages.remove(at: index)

@@ -28,5 +28,7 @@ final class ChatStore {
         if let data = try? JSONEncoder().encode(sessions.sorted { $0.date < $1.date }) {
             try? data.write(to: fileURL)
         }
+        // 在本地更新用户摘要，避免原始对话泄露。
+        ConversationSummaryService.shared.updateSummary(with: sessions)
     }
 }
