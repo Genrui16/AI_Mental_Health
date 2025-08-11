@@ -1,8 +1,8 @@
+// Only compile this view on iOS since it relies on UIKit and UserNotifications.
+#if os(iOS)
 import SwiftUI
 import UserNotifications
 import UIKit
-
-#if os(iOS)
 /// 设置页，允许用户配置 API Key、通知和数据选项等偏好。
 struct SettingsView: View {
     @State private var apiKeyInput: String = ""
