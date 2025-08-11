@@ -15,9 +15,9 @@ final class AIService {
     private let model = "gpt-3.5-turbo"
 
     /// 根据既往日志生成每日个性化建议。
-    func getDailyScheduleSuggestions(from logs: [MoodLog], completion: @Sendable @escaping ([ScheduleItem]) -> Void) {
+    func getDailyScheduleSuggestions(from logs: [MoodLog], completion: @Sendable @escaping (Result<[ScheduleItem], Error>) -> Void) {
         guard let apiKey = KeychainService.shared.getAPIKey() else {
-            completion([])
+            completion(.failure(AIServiceError.apiKeyMissing))
             return
         }
         let logsText = logs.map { log in
@@ -40,15 +40,40 @@ final class AIService {
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        let task = URLSession.shared.dataTask(with: request) { data, _, error in
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let httpResponse = response as? HTTPURLResponse else {
+                completion(.failure(AIServiceError.invalidResponse))
+                return
+            }
+            guard (200...299).contains(httpResponse.statusCode) else {
+                if
+                    let data = data,
+                    let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data)
+                {
+                    completion(.failure(AIServiceError.api(apiError.error.message)))
+                } else {
+                    completion(.failure(AIServiceError.httpStatus(httpResponse.statusCode)))
+                }
+                return
+            }
+            guard let data = data else {
+                completion(.failure(AIServiceError.noData))
+                return
+            }
             guard
-                error == nil,
-                let data = data,
                 let response = try? JSONDecoder().decode(ChatResponse.self, from: data),
                 let text = response.choices.first?.message.content,
                 let jsonData = text.data(using: .utf8)
             else {
-                completion([])
+                if let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data) {
+                    completion(.failure(AIServiceError.api(apiError.error.message)))
+                } else {
+                    completion(.failure(AIServiceError.decoding))
+                }
                 return
             }
             struct Suggestion: Decodable {
@@ -60,18 +85,18 @@ final class AIService {
                 let items = suggestions.map { s in
                     ScheduleItem(time: now.addingTimeInterval(TimeInterval(s.minutes_from_now * 60)), title: s.title)
                 }
-                completion(items)
+                completion(.success(items))
             } else {
-                completion([])
+                completion(.failure(AIServiceError.decoding))
             }
         }
         task.resume()
     }
 
     /// 与 AI 聊天获取回复。
-    func chat(with message: String, completion: @escaping (String) -> Void) {
+    func chat(with message: String, completion: @escaping (Result<String, Error>) -> Void) {
         guard let apiKey = KeychainService.shared.getAPIKey() else {
-            completion("未设置 API Key")
+            completion(.failure(AIServiceError.apiKeyMissing))
             return
         }
         var request = URLRequest(url: endpoint)
@@ -86,19 +111,63 @@ final class AIService {
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        let task = URLSession.shared.dataTask(with: request) { data, _, error in
-            guard
-                error == nil,
-                let data = data,
-                let response = try? JSONDecoder().decode(ChatResponse.self, from: data),
-                let text = response.choices.first?.message.content
-            else {
-                completion(error?.localizedDescription ?? "未知错误")
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
                 return
             }
-            completion(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            guard let httpResponse = response as? HTTPURLResponse else {
+                completion(.failure(AIServiceError.invalidResponse))
+                return
+            }
+            guard (200...299).contains(httpResponse.statusCode) else {
+                if
+                    let data = data,
+                    let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data)
+                {
+                    completion(.failure(AIServiceError.api(apiError.error.message)))
+                } else {
+                    completion(.failure(AIServiceError.httpStatus(httpResponse.statusCode)))
+                }
+                return
+            }
+            guard let data = data else {
+                completion(.failure(AIServiceError.noData))
+                return
+            }
+            if
+                let response = try? JSONDecoder().decode(ChatResponse.self, from: data),
+                let text = response.choices.first?.message.content
+            {
+                completion(.success(text.trimmingCharacters(in: .whitespacesAndNewlines)))
+            } else if let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data) {
+                completion(.failure(AIServiceError.api(apiError.error.message)))
+            } else {
+                completion(.failure(AIServiceError.decoding))
+            }
         }
         task.resume()
+    }
+}
+
+/// 服务错误类型。
+enum AIServiceError: LocalizedError {
+    case apiKeyMissing
+    case invalidResponse
+    case httpStatus(Int)
+    case noData
+    case decoding
+    case api(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .apiKeyMissing: return "未设置 API Key"
+        case .invalidResponse: return "Invalid response from server"
+        case .httpStatus(let code): return "Server returned status code \(code)"
+        case .noData: return "No data returned"
+        case .decoding: return "Failed to decode response"
+        case .api(let message): return message
+        }
     }
 }
 
@@ -109,5 +178,11 @@ private struct ChatResponse: Decodable {
         let message: Message
     }
     let choices: [Choice]
+}
+
+/// OpenAI 错误响应模型。
+private struct OpenAIErrorResponse: Decodable {
+    struct APIError: Decodable { let message: String }
+    let error: APIError
 }
 
