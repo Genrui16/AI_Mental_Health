@@ -12,6 +12,11 @@ final class HealthService {
     private let healthStore = HKHealthStore()
     private init() {}
 
+    /// 当前设备是否支持 HealthKit。
+    var isHealthDataAvailable: Bool {
+        HKHealthStore.isHealthDataAvailable()
+    }
+
     /// 请求读取指定的健康数据类型，目前包括步数、睡眠分析和心率。
     /// - Note: `completion` 回调在主线程中执行。
     func requestAuthorization(completion: @escaping (Bool, Error?) -> Void) {
