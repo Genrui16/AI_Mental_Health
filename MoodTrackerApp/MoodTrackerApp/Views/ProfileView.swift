@@ -6,19 +6,22 @@ struct ProfileView: View {
     var body: some View {
         NavigationView {
             List {
-                NavigationLink(destination: DiaryHistoryView()) {
-                    Label("日记记录", systemImage: "book")
+                Section {
+                    NavigationLink(destination: DiaryHistoryView()) {
+                        Label("日记记录", systemImage: "book")
+                    }
+                    NavigationLink(destination: HealthDataView()) {
+                        Label("健康数据同步", systemImage: "heart.fill")
+                    }
+                    NavigationLink(destination: MoodTrendView(moodLogs: MoodLogStore.shared.loadLogs())) {
+                        Label("心情趋势", systemImage: "chart.line.uptrend.xyaxis")
+                    }
                 }
-                NavigationLink(destination: HealthDataView()) {
-                    Label("健康数据同步", systemImage: "heart.fill")
+                Section {
+                    NavigationLink(destination: SettingsView()) {
+                        Label("设置", systemImage: "gearshape")
+                    }
                 }
-                NavigationLink(destination: MoodTrendView()) {
-                    Label("心情趋势", systemImage: "chart.line.uptrend.xyaxis")
-                }
-                NavigationLink(destination: SettingsView()) {
-                    Label("设置", systemImage: "gear")
-                }
-                // 可在此继续添加更多选项，例如关于等
             }
             .navigationTitle("我的")
         }

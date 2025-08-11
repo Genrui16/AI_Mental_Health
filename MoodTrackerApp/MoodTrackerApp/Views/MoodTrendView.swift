@@ -4,8 +4,8 @@ import Charts
 
 /// 心情趋势视图，用于展示用户的情绪变化和节律评分趋势图。
 struct MoodTrendView: View {
-    /// 心情记录列表。
-    @State private var moodLogs: [MoodLog] = []
+    /// 心情记录列表，由外部传入。
+    var moodLogs: [MoodLog]
 
     /// 显示的时间范围，默认一周。
     @State private var selectedRange: TimeRange = .week
@@ -27,16 +27,20 @@ struct MoodTrendView: View {
 
     /// 简单的趋势说明。
     private var trendDescription: String {
-        guard let first = chartData.first?.score, let last = chartData.last?.score else {
-            return "暂无足够数据"
+        guard chartData.count >= 2,
+              let first = chartData.first?.score,
+              let last = chartData.last?.score else {
+            return "数据不足无法判断趋势"
         }
         let diff = last - first
+        let maxScore = chartData.map { $0.score }.max() ?? last
+        let minScore = chartData.map { $0.score }.min() ?? first
         if diff > 0 {
-            return "情绪整体呈上升趋势"
+            return "情绪整体呈上升趋势 (最高\(maxScore)分, 最低\(minScore)分)"
         } else if diff < 0 {
-            return "情绪整体呈下降趋势"
+            return "情绪整体呈下降趋势 (最高\(maxScore)分, 最低\(minScore)分)"
         } else {
-            return "情绪保持稳定"
+            return "情绪保持稳定 (最高\(maxScore)分, 最低\(minScore)分)"
         }
     }
 
@@ -60,6 +64,7 @@ struct MoodTrendView: View {
                 )
             }
             .frame(height: 200)
+            .chartYScale(domain: 0...10)
 
             Text(trendDescription)
                 .font(.footnote)
@@ -69,9 +74,6 @@ struct MoodTrendView: View {
         }
         .padding()
         .navigationTitle("心情趋势")
-        .onAppear {
-            moodLogs = MoodLogStore.shared.loadLogs()
-        }
     }
 }
 
@@ -101,13 +103,13 @@ enum TimeRange: String, CaseIterable, Identifiable {
 /// 将心情字符串转为数值评分，用于绘制图表。
 private func moodScore(for mood: String) -> Int {
     let mapping: [String: Int] = [
-        "非常不好": 1,
-        "不好": 2,
-        "一般": 3,
-        "好": 4,
-        "很好": 5
+        "非常不好": 2,
+        "不好": 4,
+        "一般": 6,
+        "好": 8,
+        "很好": 10
     ]
-    return mapping[mood] ?? 3
+    return mapping[mood] ?? 6
 }
 
 // MARK: - 预览
@@ -115,7 +117,7 @@ private func moodScore(for mood: String) -> Int {
 struct MoodTrendView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationView {
-            MoodTrendView()
+            MoodTrendView(moodLogs: [])
         }
     }
 }
