@@ -1,7 +1,6 @@
 #if os(iOS)
 import SwiftUI
 import CoreData
-import UserNotifications
 
 /// 时间轴视图，左侧展示 AI 建议的日程，右侧记录用户的实际活动。
 struct TimelineView: View {
@@ -191,9 +190,8 @@ struct TimelineView: View {
                 isLoading = false
                 switch result {
                 case .success(let items):
-                    let center = UNUserNotificationCenter.current()
                     let oldIds = suggestedEvents.map { $0.id.uuidString }
-                    center.removePendingNotificationRequests(withIdentifiers: oldIds)
+                    NotificationService.shared.cancelNotifications(ids: oldIds)
                     for item in suggestedEvents {
                         viewContext.delete(item)
                     }
@@ -207,7 +205,7 @@ struct TimelineView: View {
                     }
                     try? viewContext.save()
                     if notificationsEnabled {
-                        scheduleNotifications(for: Array(suggestedEvents))
+                        NotificationService.shared.scheduleEventNotifications(for: Array(suggestedEvents))
                     }
                 case .failure(let error):
                     errorMessage = "获取建议失败，请稍后重试。\n" + error.localizedDescription
@@ -260,21 +258,10 @@ struct TimelineView: View {
 
     /// 请求通知权限，如果未授权则提示用户。
     private func requestNotificationPermissionIfNeeded() {
-        let center = UNUserNotificationCenter.current()
-        center.getNotificationSettings { settings in
-            switch settings.authorizationStatus {
-            case .notDetermined:
-                center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-                    if !granted {
-                        errorMessage = "通知权限被拒绝，提醒功能将不可用"
-                        showingError = true
-                    }
-                }
-            case .denied:
+        NotificationService.shared.requestAuthorization { granted in
+            if !granted {
                 errorMessage = "未开启通知权限，提醒功能将不可用"
                 showingError = true
-            default:
-                break
             }
         }
     }
@@ -288,23 +275,6 @@ struct TimelineView: View {
         #endif
     }
 
-    /// 为建议事件安排本地通知。
-    private func scheduleNotifications(for events: [SuggestedEvent]) {
-        let center = UNUserNotificationCenter.current()
-        for event in events {
-            let content = UNMutableNotificationContent()
-            content.title = event.title
-            if let notes = event.notes { content.body = notes }
-            content.userInfo = ["id": event.id.uuidString]
-            var triggerDate = event.time.addingTimeInterval(-300)
-            if triggerDate < Date() { triggerDate = event.time }
-            guard triggerDate > Date() else { continue }
-            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: triggerDate)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-            let request = UNNotificationRequest(identifier: event.id.uuidString, content: content, trigger: trigger)
-            center.add(request)
-        }
-    }
 
     /// 生成用于存储完成计数的 UserDefaults key。
     private func completionCountKey(for date: Date) -> String {
