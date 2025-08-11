@@ -1,6 +1,7 @@
 #if os(iOS)
 import SwiftUI
 import CoreData
+import UserNotifications
 
 /// 时间轴视图，左侧展示 AI 建议的日程，右侧记录用户的实际活动。
 struct TimelineView: View {
@@ -20,6 +21,8 @@ struct TimelineView: View {
     @State private var showingEditor = false
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var showingAPIKeyPrompt = false
+    @State private var apiKeyInput: String = ""
 
     var body: some View {
         NavigationView {
@@ -95,6 +98,15 @@ struct TimelineView: View {
         .sheet(isPresented: $showingEditor) {
             EventEditView(event: editingEvent)
         }
+        .alert("设置 API Key", isPresented: $showingAPIKeyPrompt) {
+            TextField("API Key", text: $apiKeyInput)
+            Button("保存") {
+                KeychainService.shared.saveAPIKey(apiKeyInput)
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("使用此功能需要设置 OpenAI API Key")
+        }
         .alert("获取建议失败", isPresented: $showingError) {
             Button("确定", role: .cancel) {}
         } message: {
@@ -117,6 +129,11 @@ struct TimelineView: View {
 
     /// 刷新建议日程，调用 AIService 获取个性化建议。
     private func generateSuggestions() {
+        guard KeychainService.shared.getAPIKey() != nil else {
+            showingAPIKeyPrompt = true
+            return
+        }
+        requestNotificationPermissionIfNeeded()
         let logs = MoodLogStore.shared.recentLogs(days: 7)
         AIService.shared.getDailyScheduleSuggestions(from: logs) { result in
             DispatchQueue.main.async {
@@ -144,6 +161,27 @@ struct TimelineView: View {
     private func delete(_ event: ActualEvent) {
         viewContext.delete(event)
         try? viewContext.save()
+    }
+
+    /// 请求通知权限，如果未授权则提示用户。
+    private func requestNotificationPermissionIfNeeded() {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                    if !granted {
+                        errorMessage = "通知权限被拒绝，提醒功能将不可用"
+                        showingError = true
+                    }
+                }
+            case .denied:
+                errorMessage = "未开启通知权限，提醒功能将不可用"
+                showingError = true
+            default:
+                break
+            }
+        }
     }
 
     /// 根据当前平台选择合适的工具栏位置。

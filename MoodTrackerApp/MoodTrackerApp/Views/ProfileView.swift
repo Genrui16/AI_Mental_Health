@@ -15,7 +15,10 @@ struct ProfileView: View {
                 NavigationLink(destination: MoodTrendView()) {
                     Label("心情趋势", systemImage: "chart.line.uptrend.xyaxis")
                 }
-                // 可在此继续添加更多选项，例如设置、关于等
+                NavigationLink(destination: SettingsView()) {
+                    Label("设置", systemImage: "gear")
+                }
+                // 可在此继续添加更多选项，例如关于等
             }
             .navigationTitle("我的")
         }

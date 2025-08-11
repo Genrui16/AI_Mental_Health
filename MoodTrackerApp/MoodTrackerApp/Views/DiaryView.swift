@@ -10,6 +10,9 @@ struct DiaryView: View {
     @StateObject private var speechService = SpeechService()
     @State private var showRatingSheet = false
     @State private var rating: Double = 5
+    @State private var showingAPIKeyPrompt = false
+    @State private var apiKeyInput: String = ""
+    @State private var showSpeechError = false
 
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -34,9 +37,26 @@ struct DiaryView: View {
             .onChange(of: speechService.transcribedText) { text in
                 diaryText = text
             }
+            .onChange(of: speechService.errorMessage) { _ in
+                showSpeechError = speechService.errorMessage != nil
+            }
             .sheet(isPresented: $showRatingSheet) {
                 ratingSheetContent
             }
+        }
+        .alert("语音识别", isPresented: $showSpeechError) {
+            Button("确定", role: .cancel) { speechService.errorMessage = nil }
+        } message: {
+            Text(speechService.errorMessage ?? "")
+        }
+        .alert("设置 API Key", isPresented: $showingAPIKeyPrompt) {
+            TextField("API Key", text: $apiKeyInput)
+            Button("保存") {
+                KeychainService.shared.saveAPIKey(apiKeyInput)
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("使用此功能需要设置 OpenAI API Key")
         }
     }
 
@@ -136,6 +156,10 @@ struct DiaryView: View {
     private func sendMessage() {
         let trimmed = diaryText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        guard KeychainService.shared.getAPIKey() != nil else {
+            showingAPIKeyPrompt = true
+            return
+        }
         let sentiment = SentimentService.shared.analyze(trimmed)
         let message = ChatMessage(role: .user, text: trimmed, sentiment: sentiment)
         currentSession.messages.append(message)
