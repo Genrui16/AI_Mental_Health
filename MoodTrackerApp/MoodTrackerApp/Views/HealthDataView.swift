@@ -42,14 +42,12 @@ struct HealthDataView: View {
     /// 请求健康数据访问权限
     private func requestAuthorization() {
         HealthService.shared.requestAuthorization { success, error in
-            DispatchQueue.main.async {
-                self.isAuthorized = success
-                if success {
-                    self.fetchData()
-                } else {
-                    self.errorMessage = error?.localizedDescription ?? "授权失败或被拒绝"
-                    self.showError = true
-                }
+            self.isAuthorized = success
+            if success {
+                self.fetchData()
+            } else {
+                self.errorMessage = error?.localizedDescription ?? "授权失败或被拒绝"
+                self.showError = true
             }
         }
     }
@@ -57,19 +55,13 @@ struct HealthDataView: View {
     /// 获取步数等数据
     private func fetchData() {
         HealthService.shared.fetchStepCount { count in
-            DispatchQueue.main.async {
-                self.stepCount = count
-            }
+            self.stepCount = count
         }
         HealthService.shared.fetchSleepAnalysis { hours in
-            DispatchQueue.main.async {
-                self.sleepHours = hours
-            }
+            self.sleepHours = hours
         }
         HealthService.shared.fetchHeartRate { rate in
-            DispatchQueue.main.async {
-                self.averageHeartRate = rate
-            }
+            self.averageHeartRate = rate
         }
     }
 }
