@@ -7,6 +7,7 @@ import AVFoundation
 final class SpeechService: NSObject, ObservableObject {
     @Published var transcribedText: String = ""
     @Published var isRecording: Bool = false
+    @Published var errorMessage: String?
     
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
     private let audioEngine = AVAudioEngine()
@@ -15,9 +16,20 @@ final class SpeechService: NSObject, ObservableObject {
     
     func startRecording() {
         SFSpeechRecognizer.requestAuthorization { status in
-            guard status == .authorized else { return }
             DispatchQueue.main.async {
-                self.record()
+                switch status {
+                case .authorized:
+                    self.errorMessage = nil
+                    self.record()
+                case .denied:
+                    self.errorMessage = "语音识别权限被拒绝"
+                case .restricted:
+                    self.errorMessage = "设备不支持语音识别"
+                case .notDetermined:
+                    self.errorMessage = "语音识别权限未确定"
+                @unknown default:
+                    self.errorMessage = "未知的授权状态"
+                }
             }
         }
     }
@@ -33,12 +45,27 @@ final class SpeechService: NSObject, ObservableObject {
             request.append(buffer)
         }
         audioEngine.prepare()
-        try? audioEngine.start()
+        do {
+            try audioEngine.start()
+        } catch {
+            errorMessage = error.localizedDescription
+            transcribedText = ""
+            isRecording = false
+            audioEngine.stop()
+            inputNode.removeTap(onBus: 0)
+            request.endAudio()
+            self.request = nil
+            self.task = nil
+            return
+        }
         task = recognizer?.recognitionTask(with: request) { result, error in
             if let result = result {
                 self.transcribedText = result.bestTranscription.formattedString
             }
-            if error != nil || (result?.isFinal ?? false) {
+            if let error = error {
+                self.errorMessage = error.localizedDescription
+                self.stopRecording()
+            } else if result?.isFinal ?? false {
                 self.stopRecording()
             }
         }
