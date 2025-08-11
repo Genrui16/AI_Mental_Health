@@ -1,4 +1,6 @@
 import SwiftUI
+import UserNotifications
+import UIKit
 
 #if os(iOS)
 /// 设置页，允许用户配置 API Key、通知和数据选项等偏好。
@@ -7,6 +9,10 @@ struct SettingsView: View {
     @State private var storedKey: String? = KeychainService.shared.getAPIKey()
     @AppStorage("scheduleNotificationsEnabled") private var scheduleNotificationsEnabled: Bool = true
     @AppStorage("diaryNotificationsEnabled") private var diaryNotificationsEnabled: Bool = true
+    @AppStorage("diaryReminderHour") private var diaryReminderHour: Int = 21
+    @AppStorage("diaryReminderMinute") private var diaryReminderMinute: Int = 0
+    @State private var showingAlert = false
+    @State private var alertMessage = ""
 
     var body: some View {
         Form {
@@ -20,6 +26,16 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("设置")
+        .alert("未开启通知权限", isPresented: $showingAlert) {
+            Button("取消", role: .cancel) {}
+            Button("去设置") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+        } message: {
+            Text(alertMessage)
+        }
     }
 
     /// API Key 管理
@@ -47,8 +63,67 @@ struct SettingsView: View {
     private var notificationSection: some View {
         Section(header: Text("通知")) {
             Toggle("日程提醒", isOn: $scheduleNotificationsEnabled)
+                .onChange(of: scheduleNotificationsEnabled) { newValue in
+                    if newValue {
+                        NotificationService.shared.requestAuthorization { granted in
+                            if !granted {
+                                DispatchQueue.main.async {
+                                    scheduleNotificationsEnabled = false
+                                    alertMessage = "请在系统设置中开启通知权限以使用日程提醒"
+                                    showingAlert = true
+                                }
+                            }
+                        }
+                    }
+                }
+
             Toggle("日记提醒", isOn: $diaryNotificationsEnabled)
+                .onChange(of: diaryNotificationsEnabled) { enabled in
+                    if enabled {
+                        NotificationService.shared.requestAuthorization { granted in
+                            if granted {
+                                let date = diaryReminderDate
+                                NotificationService.shared.scheduleDiaryReminder(at: date)
+                            } else {
+                                DispatchQueue.main.async {
+                                    diaryNotificationsEnabled = false
+                                    alertMessage = "请在系统设置中开启通知权限以使用日记提醒"
+                                    showingAlert = true
+                                }
+                            }
+                        }
+                    } else {
+                        NotificationService.shared.cancelDiaryReminder()
+                    }
+                }
+
+            if diaryNotificationsEnabled {
+                DatePicker("提醒时间", selection: diaryReminderBinding, displayedComponents: .hourAndMinute)
+            }
         }
+    }
+
+    /// 计算并绑定日记提醒时间
+    private var diaryReminderDate: Date {
+        get {
+            var comps = DateComponents()
+            comps.hour = diaryReminderHour
+            comps.minute = diaryReminderMinute
+            return Calendar.current.date(from: comps) ?? Date()
+        }
+        set {
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+            diaryReminderHour = comps.hour ?? 21
+            diaryReminderMinute = comps.minute ?? 0
+            NotificationService.shared.cancelDiaryReminder()
+            if diaryNotificationsEnabled {
+                NotificationService.shared.scheduleDiaryReminder(at: newValue)
+            }
+        }
+    }
+
+    private var diaryReminderBinding: Binding<Date> {
+        Binding(get: { diaryReminderDate }, set: { diaryReminderDate = $0 })
     }
 
     /// 隐私与数据
