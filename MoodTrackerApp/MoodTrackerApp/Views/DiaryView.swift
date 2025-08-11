@@ -13,6 +13,7 @@ struct DiaryView: View {
     @State private var showingAPIKeyPrompt = false
     @State private var apiKeyInput: String = ""
     @State private var showSpeechError = false
+    @FocusState private var inputFocused: Bool
 
     /// 简单敏感词列表，用于过滤 AI 回复中的不当内容。
     private let bannedWords = ["自杀", "伤害自己", "自残", "杀人"]
@@ -37,10 +38,10 @@ struct DiaryView: View {
                 }
             }
             .onAppear(perform: loadSession)
-            .onChange(of: speechService.transcribedText) { text in
+            .onChange(of: speechService.transcribedText) { _, text in
                 diaryText = text
             }
-            .onChange(of: speechService.errorMessage) { _ in
+            .onChange(of: speechService.errorMessage) {
                 showSpeechError = speechService.errorMessage != nil
             }
             .sheet(isPresented: $showRatingSheet) {
@@ -78,7 +79,8 @@ struct DiaryView: View {
                 }
                 .padding()
             }
-            .onChange(of: chatHistory.last?.id) { _ in
+            .onTapGesture { inputFocused = false }
+            .onChange(of: chatHistory.last?.id) {
                 if let last = chatHistory.indices.last {
                     proxy.scrollTo(last, anchor: .bottom)
                 }
@@ -122,6 +124,7 @@ struct DiaryView: View {
             TextField("写下你的想法...", text: $diaryText, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(3)
+                .focused($inputFocused)
             Button(action: sendMessage) {
                 Image(systemName: "paperplane.fill")
                     .font(.system(size: 20))
@@ -140,6 +143,12 @@ struct DiaryView: View {
             .padding(.leading, 4)
         }
         .padding()
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") { inputFocused = false }
+            }
+        }
     }
 
     /// 评分表单内容
@@ -157,6 +166,7 @@ struct DiaryView: View {
 
     /// 发送用户输入的文本，并进行情感分析和持久化。
     private func sendMessage() {
+        inputFocused = false
         let trimmed = diaryText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard KeychainService.shared.getAPIKey() != nil else {

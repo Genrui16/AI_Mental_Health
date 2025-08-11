@@ -63,7 +63,7 @@ struct SettingsView: View {
     private var notificationSection: some View {
         Section(header: Text("通知")) {
             Toggle("日程提醒", isOn: $scheduleNotificationsEnabled)
-                .onChange(of: scheduleNotificationsEnabled) { newValue in
+                .onChange(of: scheduleNotificationsEnabled) { _, newValue in
                     if newValue {
                         NotificationService.shared.requestAuthorization { granted in
                             if !granted {
@@ -78,7 +78,7 @@ struct SettingsView: View {
                 }
 
             Toggle("日记提醒", isOn: $diaryNotificationsEnabled)
-                .onChange(of: diaryNotificationsEnabled) { enabled in
+                .onChange(of: diaryNotificationsEnabled) { _, enabled in
                     if enabled {
                         NotificationService.shared.requestAuthorization { granted in
                             if granted {

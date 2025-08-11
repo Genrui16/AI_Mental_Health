@@ -24,6 +24,7 @@ struct TimelineView: View {
     @State private var apiKeyInput: String = ""
     @State private var isLoading = false
     @AppStorage("scheduleNotificationsEnabled") private var notificationsEnabled: Bool = true
+    @State private var errorTitle: String = ""
 
     var body: some View {
         NavigationView {
@@ -117,7 +118,7 @@ struct TimelineView: View {
         } message: {
             Text("使用此功能需要设置 OpenAI API Key")
         }
-        .alert("获取建议失败", isPresented: $showingError) {
+        .alert(errorTitle, isPresented: $showingError) {
             Button("确定", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "未知错误")
@@ -207,8 +208,27 @@ struct TimelineView: View {
                     if notificationsEnabled {
                         NotificationService.shared.scheduleEventNotifications(for: Array(suggestedEvents))
                     }
-                case .failure(let error):
-                    errorMessage = "获取建议失败，请稍后重试。\n" + error.localizedDescription
+                case .failure:
+                    for item in suggestedEvents { viewContext.delete(item) }
+                    let fallback = [
+                        ScheduleItem(time: Date().addingTimeInterval(1800), title: "短暂散步"),
+                        ScheduleItem(time: Date().addingTimeInterval(3600), title: "喝水休息"),
+                        ScheduleItem(time: Date().addingTimeInterval(5400), title: "写日记")
+                    ]
+                    for suggestion in fallback {
+                        let newItem = SuggestedEvent(context: viewContext)
+                        newItem.id = UUID()
+                        newItem.time = suggestion.time
+                        newItem.title = suggestion.title
+                        newItem.notes = suggestion.notes
+                        newItem.isCompleted = false
+                    }
+                    try? viewContext.save()
+                    if notificationsEnabled {
+                        NotificationService.shared.scheduleEventNotifications(for: Array(suggestedEvents))
+                    }
+                    errorTitle = "已加载默认建议"
+                    errorMessage = "AI 服务暂不可用，已为您生成默认日程"
                     showingError = true
                 }
             }
