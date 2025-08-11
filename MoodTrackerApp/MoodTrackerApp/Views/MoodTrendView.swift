@@ -4,8 +4,8 @@ import Charts
 
 /// 心情趋势视图，用于展示用户的情绪变化和节律评分趋势图。
 struct MoodTrendView: View {
-    /// 传入心情记录列表，可在实际使用时注入。
-    var moodLogs: [MoodLog] = []
+    /// 心情记录列表。
+    @State private var moodLogs: [MoodLog] = []
 
     /// 显示的时间范围，默认一周。
     @State private var selectedRange: TimeRange = .week
@@ -69,6 +69,9 @@ struct MoodTrendView: View {
         }
         .padding()
         .navigationTitle("心情趋势")
+        .onAppear {
+            moodLogs = MoodLogStore.shared.loadLogs()
+        }
     }
 }
 
