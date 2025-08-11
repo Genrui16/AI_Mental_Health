@@ -6,14 +6,28 @@ struct ScheduleRow: View {
     var item: ScheduleItem
     /// 标记是否为 AI 建议，用于区分颜色或样式。
     var isSuggested: Bool
+    /// 当为建议项时的完成状态。
+    var isCompleted: Bool = false
+    /// 切换完成状态的动作，仅对建议项有效。
+    var onToggleCompleted: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
-            // 使用颜色标识建议（蓝色）与实际记录（绿色）
-            Circle()
-                .fill(isSuggested ? Color.blue.opacity(0.7) : Color.green.opacity(0.7))
-                .frame(width: 8, height: 8)
-                .padding(.top, 4)
+            if isSuggested {
+                Button(action: { onToggleCompleted?() }) {
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(isCompleted ? .green : .blue)
+                        .frame(width: 16, height: 16)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            } else {
+                // 使用颜色标识实际记录（绿色）
+                Circle()
+                    .fill(Color.green.opacity(0.7))
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 4)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.time, style: .time)
                     .font(.caption)

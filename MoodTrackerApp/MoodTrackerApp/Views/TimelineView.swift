@@ -23,11 +23,13 @@ struct TimelineView: View {
     @State private var showingError = false
     @State private var showingAPIKeyPrompt = false
     @State private var apiKeyInput: String = ""
+    @State private var isLoading = false
+    @AppStorage("scheduleNotificationsEnabled") private var notificationsEnabled: Bool = true
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                ZStack {
+            ZStack {
+                ScrollView {
                     Rectangle()
                         .fill(Color.secondary.opacity(0.3))
                         .frame(width: 2)
@@ -40,7 +42,12 @@ struct TimelineView: View {
                                 VStack(alignment: .leading) {
                                     if index < suggestedEvents.count {
                                         let item = suggestedEvents[index]
-                                        ScheduleRow(item: ScheduleItem(time: item.time, title: item.title, notes: item.notes ?? ""), isSuggested: true)
+                                        ScheduleRow(
+                                            item: ScheduleItem(time: item.time, title: item.title, notes: item.notes ?? ""),
+                                            isSuggested: true,
+                                            isCompleted: item.isCompleted,
+                                            onToggleCompleted: { toggleCompletion(item) }
+                                        )
                                     } else {
                                         Spacer().frame(height: 0)
                                     }
@@ -79,6 +86,9 @@ struct TimelineView: View {
                     }
                     .padding()
                 }
+                if isLoading {
+                    ProgressView().scaleEffect(1.2)
+                }
             }
             .navigationTitle("时间轴")
             .toolbar {
@@ -87,6 +97,7 @@ struct TimelineView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                     .accessibilityLabel("刷新建议日程")
+                    .disabled(isLoading)
 
                     Button(action: { editingEvent = nil; showingEditor = true }) {
                         Image(systemName: "plus")
@@ -133,12 +144,50 @@ struct TimelineView: View {
             showingAPIKeyPrompt = true
             return
         }
+        isLoading = true
         requestNotificationPermissionIfNeeded()
         let logs = MoodLogStore.shared.recentLogs(days: 7)
-        AIService.shared.getDailyScheduleSuggestions(from: logs) { result in
+        var contextPieces: [String] = []
+        let yesterdayKey = completionCountKey(for: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+        let yesterdayCompleted = UserDefaults.standard.integer(forKey: yesterdayKey)
+        contextPieces.append("昨日完成建议数: \(yesterdayCompleted)")
+
+        if #available(iOS 15.0, *) {
+            let group = DispatchGroup()
+            var steps: Double = 0
+            var sleep: Double = 0
+            group.enter()
+            HealthService.shared.fetchStepCount { count in
+                steps = count
+                group.leave()
+            }
+            group.enter()
+            HealthService.shared.fetchSleepAnalysis { hours in
+                sleep = hours
+                group.leave()
+            }
+            group.notify(queue: .main) {
+                if steps > 0 || sleep > 0 {
+                    contextPieces.append("步数: \(Int(steps))")
+                    contextPieces.append(String(format: "睡眠: %.1f小时", sleep))
+                }
+                requestSuggestions(logs: logs, context: contextPieces.joined(separator: "\n"))
+            }
+        } else {
+            requestSuggestions(logs: logs, context: contextPieces.joined(separator: "\n"))
+        }
+    }
+
+    /// 调用 AIService 并处理返回结果。
+    private func requestSuggestions(logs: [MoodLog], context: String) {
+        AIService.shared.getDailyScheduleSuggestions(from: logs, context: context) { result in
             DispatchQueue.main.async {
+                isLoading = false
                 switch result {
                 case .success(let items):
+                    let center = UNUserNotificationCenter.current()
+                    let oldIds = suggestedEvents.map { $0.id.uuidString }
+                    center.removePendingNotificationRequests(withIdentifiers: oldIds)
                     for item in suggestedEvents {
                         viewContext.delete(item)
                     }
@@ -148,10 +197,14 @@ struct TimelineView: View {
                         newItem.time = suggestion.time
                         newItem.title = suggestion.title
                         newItem.notes = suggestion.notes
+                        newItem.isCompleted = false
                     }
                     try? viewContext.save()
+                    if notificationsEnabled {
+                        scheduleNotifications(for: Array(suggestedEvents))
+                    }
                 case .failure(let error):
-                    errorMessage = error.localizedDescription
+                    errorMessage = "获取建议失败，请稍后重试。\n" + error.localizedDescription
                     showingError = true
                 }
             }
@@ -161,6 +214,19 @@ struct TimelineView: View {
     private func delete(_ event: ActualEvent) {
         viewContext.delete(event)
         try? viewContext.save()
+    }
+
+    private func toggleCompletion(_ event: SuggestedEvent) {
+        event.isCompleted.toggle()
+        try? viewContext.save()
+        let key = completionCountKey(for: Date())
+        var count = UserDefaults.standard.integer(forKey: key)
+        if event.isCompleted {
+            count += 1
+        } else {
+            count = max(0, count - 1)
+        }
+        UserDefaults.standard.set(count, forKey: key)
     }
 
     /// 请求通知权限，如果未授权则提示用户。
@@ -191,6 +257,31 @@ struct TimelineView: View {
         #else
         return .automatic
         #endif
+    }
+
+    /// 为建议事件安排本地通知。
+    private func scheduleNotifications(for events: [SuggestedEvent]) {
+        let center = UNUserNotificationCenter.current()
+        for event in events {
+            let content = UNMutableNotificationContent()
+            content.title = event.title
+            if let notes = event.notes { content.body = notes }
+            content.userInfo = ["id": event.id.uuidString]
+            var triggerDate = event.time.addingTimeInterval(-300)
+            if triggerDate < Date() { triggerDate = event.time }
+            guard triggerDate > Date() else { continue }
+            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: triggerDate)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let request = UNNotificationRequest(identifier: event.id.uuidString, content: content, trigger: trigger)
+            center.add(request)
+        }
+    }
+
+    /// 生成用于存储完成计数的 UserDefaults key。
+    private func completionCountKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return "completedSuggestions-\(formatter.string(from: date))"
     }
 }
 

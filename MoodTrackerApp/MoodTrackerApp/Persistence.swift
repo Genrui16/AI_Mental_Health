@@ -73,6 +73,13 @@ struct PersistenceController {
         suggestedNotes.isOptional = true
         suggestedProperties.append(suggestedNotes)
 
+        let suggestedCompleted = NSAttributeDescription()
+        suggestedCompleted.name = "isCompleted"
+        suggestedCompleted.attributeType = .booleanAttributeType
+        suggestedCompleted.isOptional = false
+        suggestedCompleted.defaultValue = false
+        suggestedProperties.append(suggestedCompleted)
+
         suggestedEntity.properties = suggestedProperties
 
         model.entities = [actualEntity, suggestedEntity]
@@ -106,5 +113,6 @@ public class SuggestedEvent: NSManagedObject {
     @NSManaged public var time: Date
     @NSManaged public var title: String
     @NSManaged public var notes: String?
+    @NSManaged public var isCompleted: Bool
 }
 
