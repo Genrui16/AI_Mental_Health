@@ -1,0 +1,39 @@
+#if os(iOS)
+import SwiftUI
+
+/// “我的”页面，提供健康数据同步、心情趋势等入口。
+struct ProfileView: View {
+    var body: some View {
+        NavigationView {
+            List {
+                Section {
+                    NavigationLink(destination: DiaryHistoryView()) {
+                        Label("日记记录", systemImage: "book")
+                    }
+                    NavigationLink(destination: HealthDataView()) {
+                        Label("健康数据同步", systemImage: "heart.fill")
+                    }
+                    NavigationLink(destination: MoodTrendView(moodLogs: MoodLogStore.shared.loadLogs())) {
+                        Label("心情趋势", systemImage: "chart.line.uptrend.xyaxis")
+                    }
+                }
+                Section {
+                    NavigationLink(destination: SettingsView()) {
+                        Label("设置", systemImage: "gearshape")
+                    }
+                }
+            }
+            .navigationTitle("我的")
+        }
+    }
+}
+
+// MARK: - 预览
+#if DEBUG
+struct ProfileView_Previews: PreviewProvider {
+    static var previews: some View {
+        ProfileView()
+    }
+}
+#endif
+#endif
