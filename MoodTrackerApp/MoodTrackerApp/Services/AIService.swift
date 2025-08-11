@@ -14,8 +14,12 @@ final class AIService {
     private let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
     private let model = "gpt-3.5-turbo"
 
-    /// 根据既往日志生成每日个性化建议。
-    func getDailyScheduleSuggestions(from logs: [MoodLog], completion: @Sendable @escaping (Result<[ScheduleItem], Error>) -> Void) {
+    /// 根据既往日志和可选的上下文信息生成每日个性化建议。
+    /// - Parameters:
+    ///   - logs: 近期的心情日志，用于为模型提供背景。
+    ///   - context: 额外的上下文信息，例如健康数据摘要或执行反馈，可为空。
+    ///   - completion: 异步回调，返回生成的日程项或错误。
+    func getDailyScheduleSuggestions(from logs: [MoodLog], context: String? = nil, completion: @Sendable @escaping (Result<[ScheduleItem], Error>) -> Void) {
         guard let apiKey = KeychainService.shared.getAPIKey() else {
             completion(.failure(AIServiceError.apiKeyMissing))
             return
@@ -24,10 +28,13 @@ final class AIService {
             let formatter = ISO8601DateFormatter()
             return "\(formatter.string(from: log.time)) - \(log.mood): \(log.description)"
         }.joined(separator: "\n")
-        let prompt = """
+        var prompt = """
         基于以下心情日志，生成三条日程建议，以 JSON 数组返回，每个元素包含 minutes_from_now(整数, 分钟) 与 title:
         \n\(logsText)
         """
+        if let context = context, !context.isEmpty {
+            prompt += "\n附加信息:\n\(context)"
+        }
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
