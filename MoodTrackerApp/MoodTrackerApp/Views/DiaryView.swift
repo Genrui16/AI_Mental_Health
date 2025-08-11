@@ -141,13 +141,23 @@ struct DiaryView: View {
         currentSession.messages.append(message)
         chatHistory = currentSession.messages
         diaryText = ""
-        ChatStore.shared.saveSession(currentSession)
+        Task {
+            do {
+                try await ChatStore.shared.saveSession(currentSession)
+            } catch {
+                print("Failed to save session: \(error)")
+            }
+        }
         AIService.shared.chat(with: trimmed) { reply in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 let replyMessage = ChatMessage(role: .ai, text: reply)
                 self.currentSession.messages.append(replyMessage)
                 self.chatHistory = self.currentSession.messages
-                ChatStore.shared.saveSession(self.currentSession)
+                do {
+                    try await ChatStore.shared.saveSession(self.currentSession)
+                } catch {
+                    print("Failed to save session: \(error)")
+                }
             }
         }
     }
@@ -158,7 +168,13 @@ struct DiaryView: View {
         let message = ChatMessage(role: .user, text: text, sentiment: nil)
         currentSession.messages.append(message)
         chatHistory = currentSession.messages
-        ChatStore.shared.saveSession(currentSession)
+        Task {
+            do {
+                try await ChatStore.shared.saveSession(currentSession)
+            } catch {
+                print("Failed to save session: \(error)")
+            }
+        }
         showRatingSheet = false
         rating = 5
     }
@@ -174,23 +190,35 @@ struct DiaryView: View {
 
     /// 加载或创建当天的会话。
     private func loadSession() {
-        let today = Date()
-        let sessions = ChatStore.shared.loadSessions()
-        if let existing = sessions.first(where: { Calendar.current.isDate($0.date, inSameDayAs: today) }) {
-            currentSession = existing
-        } else {
-            currentSession = ChatSession(date: today)
-            ChatStore.shared.saveSession(currentSession)
+        Task {
+            let today = Date()
+            do {
+                let sessions = try await ChatStore.shared.loadSessions()
+                if let existing = sessions.first(where: { Calendar.current.isDate($0.date, inSameDayAs: today) }) {
+                    currentSession = existing
+                } else {
+                    currentSession = ChatSession(date: today)
+                    try await ChatStore.shared.saveSession(currentSession)
+                }
+                chatHistory = currentSession.messages
+            } catch {
+                print("Failed to load session: \(error)")
+            }
         }
-        chatHistory = currentSession.messages
     }
 
     /// 开始新的会话。
     private func newSession() {
-        ChatStore.shared.saveSession(currentSession)
-        currentSession = ChatSession(date: Date())
-        chatHistory = []
-        ChatStore.shared.saveSession(currentSession)
+        Task {
+            do {
+                try await ChatStore.shared.saveSession(currentSession)
+                currentSession = ChatSession(date: Date())
+                chatHistory = []
+                try await ChatStore.shared.saveSession(currentSession)
+            } catch {
+                print("Failed to save session: \(error)")
+            }
+        }
     }
 }
 

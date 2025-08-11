@@ -19,7 +19,13 @@ struct DiaryHistoryView: View {
         }
         .navigationTitle("日记记录")
         .onAppear {
-            sessions = ChatStore.shared.loadSessions().sorted { $0.date < $1.date }
+            Task {
+                do {
+                    sessions = try await ChatStore.shared.loadSessions()
+                } catch {
+                    print("Failed to load sessions: \(error)")
+                }
+            }
         }
     }
 }
