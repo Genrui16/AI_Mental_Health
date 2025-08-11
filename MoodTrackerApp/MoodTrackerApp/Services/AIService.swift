@@ -15,7 +15,7 @@ final class AIService {
     private let model = "gpt-3.5-turbo"
 
     /// 根据既往日志生成每日个性化建议。
-    func getDailyScheduleSuggestions(from logs: [MoodLog], completion: @Sendable @escaping ([ScheduleItem]) -> Void) {
+    func getDailyScheduleSuggestions(from logs: [MoodLog], completion: @MainActor @Sendable @escaping ([ScheduleItem]) -> Void) {
         guard let apiKey = KeychainService.shared.getAPIKey() else {
             completion([])
             return
@@ -48,7 +48,9 @@ final class AIService {
                 let text = response.choices.first?.message.content,
                 let jsonData = text.data(using: .utf8)
             else {
-                completion([])
+                DispatchQueue.main.async {
+                    completion([])
+                }
                 return
             }
             struct Suggestion: Decodable {
@@ -60,16 +62,20 @@ final class AIService {
                 let items = suggestions.map { s in
                     ScheduleItem(time: now.addingTimeInterval(TimeInterval(s.minutes_from_now * 60)), title: s.title)
                 }
-                completion(items)
+                DispatchQueue.main.async {
+                    completion(items)
+                }
             } else {
-                completion([])
+                DispatchQueue.main.async {
+                    completion([])
+                }
             }
         }
         task.resume()
     }
 
     /// 与 AI 聊天获取回复。
-    func chat(with message: String, completion: @escaping (String) -> Void) {
+    func chat(with message: String, completion: @MainActor @escaping (String) -> Void) {
         guard let apiKey = KeychainService.shared.getAPIKey() else {
             completion("未设置 API Key")
             return
@@ -93,10 +99,14 @@ final class AIService {
                 let response = try? JSONDecoder().decode(ChatResponse.self, from: data),
                 let text = response.choices.first?.message.content
             else {
-                completion(error?.localizedDescription ?? "未知错误")
+                DispatchQueue.main.async {
+                    completion(error?.localizedDescription ?? "未知错误")
+                }
                 return
             }
-            completion(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            DispatchQueue.main.async {
+                completion(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
         }
         task.resume()
     }

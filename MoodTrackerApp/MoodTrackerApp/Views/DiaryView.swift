@@ -143,12 +143,10 @@ struct DiaryView: View {
         diaryText = ""
         ChatStore.shared.saveSession(currentSession)
         AIService.shared.chat(with: trimmed) { reply in
-            DispatchQueue.main.async {
-                let replyMessage = ChatMessage(role: .ai, text: reply)
-                self.currentSession.messages.append(replyMessage)
-                self.chatHistory = self.currentSession.messages
-                ChatStore.shared.saveSession(self.currentSession)
-            }
+            let replyMessage = ChatMessage(role: .ai, text: reply)
+            self.currentSession.messages.append(replyMessage)
+            self.chatHistory = self.currentSession.messages
+            ChatStore.shared.saveSession(self.currentSession)
         }
     }
 
