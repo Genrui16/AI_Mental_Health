@@ -18,6 +18,8 @@ struct TimelineView: View {
 
     @State private var editingEvent: ActualEvent?
     @State private var showingEditor = false
+    @State private var errorMessage: String?
+    @State private var showingError = false
 
     var body: some View {
         NavigationView {
@@ -93,6 +95,11 @@ struct TimelineView: View {
         .sheet(isPresented: $showingEditor) {
             EventEditView(event: editingEvent)
         }
+        .alert("获取建议失败", isPresented: $showingError) {
+            Button("确定", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "未知错误")
+        }
         .onAppear {
             // 如果没有任何示例数据，初始化几条实际活动记录。
             if actualEvents.isEmpty {
@@ -108,28 +115,30 @@ struct TimelineView: View {
         }
     }
 
-    /// 刷新建议日程，可在此集成 ChatGPT API 获取个性化建议。
+    /// 刷新建议日程，调用 AIService 获取个性化建议。
     private func generateSuggestions() {
-        // 清空旧建议
-        for item in suggestedEvents {
-            viewContext.delete(item)
+        let logs: [MoodLog] = [] // TODO: 收集真实心情日志
+        AIService.shared.getDailyScheduleSuggestions(from: logs) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let items):
+                    for item in suggestedEvents {
+                        viewContext.delete(item)
+                    }
+                    for suggestion in items {
+                        let newItem = SuggestedEvent(context: viewContext)
+                        newItem.id = UUID()
+                        newItem.time = suggestion.time
+                        newItem.title = suggestion.title
+                        newItem.notes = suggestion.notes
+                    }
+                    try? viewContext.save()
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            }
         }
-
-        // 目前使用静态示例，后续可调用 AIService.shared.getDailyScheduleSuggestions()
-        let now = Date()
-        let suggestions = [
-            (now.addingTimeInterval(300), "起床后做 10 分钟冥想"),
-            (now.addingTimeInterval(1800), "进行 30 分钟有氧运动"),
-            (now.addingTimeInterval(5400), "安排阅读和反思时间")
-        ]
-
-        for (time, title) in suggestions {
-            let newItem = SuggestedEvent(context: viewContext)
-            newItem.id = UUID()
-            newItem.time = time
-            newItem.title = title
-        }
-        try? viewContext.save()
     }
 
     private func delete(_ event: ActualEvent) {

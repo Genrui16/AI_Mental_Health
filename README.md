@@ -4,6 +4,8 @@
 
 **MindSync** 是一款专注于心理健康和日程管理的 iOS 应用。它利用人工智能提供个性化的日程建议，并结合用户的实际记录和 Apple Health 数据，帮助用户追踪日常活动、情绪变化和健康状况，从而改善心理健康。
 
+详细的应用逻辑设计见 [docs/APP_LOGIC_DESIGN.md](docs/APP_LOGIC_DESIGN.md)。
+
 ## 功能介绍
 
 - **主时间轴 (Timeline)：**  
