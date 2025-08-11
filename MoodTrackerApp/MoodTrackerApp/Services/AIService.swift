@@ -26,14 +26,15 @@ final class AIService {
         }
         let logsText = logs.map { log in
             let formatter = ISO8601DateFormatter()
-            return "\(formatter.string(from: log.time)) - \(log.mood): \(log.description)"
+            let desc = PrivacyFilter.sanitize(log.description)
+            return "\(formatter.string(from: log.time)) - \(log.mood): \(desc)"
         }.joined(separator: "\n")
         var prompt = """
         基于以下心情日志，生成三条日程建议，以 JSON 数组返回，每个元素包含 minutes_from_now(整数, 分钟) 与 title:
         \n\(logsText)
         """
         if let context = context, !context.isEmpty {
-            prompt += "\n附加信息:\n\(context)"
+            prompt += "\n附加信息:\n\(PrivacyFilter.sanitize(context))"
         }
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -103,8 +104,9 @@ final class AIService {
     /// 与 AI 聊天获取回复，支持传入最近的对话历史以提高连贯性。
     /// - Parameters:
     ///   - messages: 包含最近对话记录的数组，仅会取最后若干条发送给模型。
+    ///   - userSummary: 本地生成的用户摘要，用于提供长期记忆，可为空。
     ///   - completion: 异步回调，返回 AI 回复或错误。
-    func chat(with messages: [ChatMessage], completion: @escaping (Result<String, Error>) -> Void) {
+    func chat(with messages: [ChatMessage], userSummary: String? = nil, completion: @escaping (Result<String, Error>) -> Void) {
         guard let apiKey = KeychainService.shared.getAPIKey() else {
             completion(.failure(AIServiceError.apiKeyMissing))
             return
@@ -117,11 +119,14 @@ final class AIService {
 
         // 控制历史长度，避免超过 token 限制
         let recent = Array(messages.suffix(10))
-        let messagePayload: [[String: String]] = recent.map { msg in
-            let role = msg.role == .user ? "user" : "assistant"
-            return ["role": role, "content": msg.text]
+        var messagePayload: [[String: String]] = []
+        if let summary = userSummary, !summary.isEmpty {
+            messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(summary)])
         }
-
+        for msg in recent {
+            let role = msg.role == .user ? "user" : "assistant"
+            messagePayload.append(["role": role, "content": PrivacyFilter.sanitize(msg.text)])
+        }
         let body: [String: Any] = [
             "model": model,
             "messages": messagePayload
