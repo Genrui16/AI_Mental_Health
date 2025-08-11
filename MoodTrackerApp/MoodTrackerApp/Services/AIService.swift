@@ -100,21 +100,31 @@ final class AIService {
         task.resume()
     }
 
-    /// 与 AI 聊天获取回复。
-    func chat(with message: String, completion: @escaping (Result<String, Error>) -> Void) {
+    /// 与 AI 聊天获取回复，支持传入最近的对话历史以提高连贯性。
+    /// - Parameters:
+    ///   - messages: 包含最近对话记录的数组，仅会取最后若干条发送给模型。
+    ///   - completion: 异步回调，返回 AI 回复或错误。
+    func chat(with messages: [ChatMessage], completion: @escaping (Result<String, Error>) -> Void) {
         guard let apiKey = KeychainService.shared.getAPIKey() else {
             completion(.failure(AIServiceError.apiKeyMissing))
             return
         }
+
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        // 控制历史长度，避免超过 token 限制
+        let recent = Array(messages.suffix(10))
+        let messagePayload: [[String: String]] = recent.map { msg in
+            let role = msg.role == .user ? "user" : "assistant"
+            return ["role": role, "content": msg.text]
+        }
+
         let body: [String: Any] = [
             "model": model,
-            "messages": [
-                ["role": "user", "content": message]
-            ]
+            "messages": messagePayload
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 

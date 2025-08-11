@@ -14,6 +14,9 @@ struct DiaryView: View {
     @State private var apiKeyInput: String = ""
     @State private var showSpeechError = false
 
+    /// 简单敏感词列表，用于过滤 AI 回复中的不当内容。
+    private let bannedWords = ["自杀", "伤害自己", "自残", "杀人"]
+
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -166,12 +169,22 @@ struct DiaryView: View {
         chatHistory = currentSession.messages
         diaryText = ""
         ChatStore.shared.saveSession(currentSession)
-        AIService.shared.chat(with: trimmed) { result in
+
+        // 显示 AI 正在思考的占位消息
+        let placeholder = ChatMessage(role: .ai, text: "AI 正在思考…")
+        currentSession.messages.append(placeholder)
+        chatHistory = currentSession.messages
+
+        // 调用 AI 服务，并传递最近的对话历史（排除占位消息）
+        AIService.shared.chat(with: Array(currentSession.messages.dropLast())) { result in
             DispatchQueue.main.async {
+                if let index = self.currentSession.messages.firstIndex(where: { $0.id == placeholder.id }) {
+                    self.currentSession.messages.remove(at: index)
+                }
                 let text: String
                 switch result {
                 case .success(let reply):
-                    text = reply
+                    text = self.sanitizeResponse(reply)
                 case .failure(let error):
                     text = error.localizedDescription
                 }
@@ -214,6 +227,16 @@ struct DiaryView: View {
         } else {
             speechService.startRecording()
         }
+    }
+
+    /// 过滤 AI 回复中的敏感内容。
+    private func sanitizeResponse(_ text: String) -> String {
+        for word in bannedWords {
+            if text.contains(word) {
+                return "抱歉，我无法回答该请求。"
+            }
+        }
+        return text
     }
 
     /// 加载或创建当天的会话。
