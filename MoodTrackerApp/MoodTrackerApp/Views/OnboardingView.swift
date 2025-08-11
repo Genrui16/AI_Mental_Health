@@ -4,6 +4,9 @@ import SwiftUI
 /// 首次启动时显示的引导页，介绍应用的主要功能。
 struct OnboardingView: View {
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+    @AppStorage("onboardingMood") private var onboardingMood: Int = 3
+    @AppStorage("onboardingSleep") private var onboardingSleep: Int = 3
+    @AppStorage("onboardingStress") private var onboardingStress: Int = 3
 
     var body: some View {
         TabView {
@@ -34,7 +37,31 @@ struct OnboardingView: View {
                     .font(.title)
                 Text("同步步数、睡眠等健康信息，了解身心状态。")
                     .multilineTextAlignment(.center)
-                Button("开始使用") {
+            }
+            .padding()
+
+            VStack(spacing: 20) {
+                Text("简单问卷")
+                    .font(.title)
+                Picker("今天的心情", selection: $onboardingMood) {
+                    ForEach(1...5, id: \.self) { index in
+                        Text("\(index)").tag(index)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Picker("昨夜睡眠质量", selection: $onboardingSleep) {
+                    ForEach(1...5, id: \.self) { index in
+                        Text("\(index)").tag(index)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Picker("当前压力水平", selection: $onboardingStress) {
+                    ForEach(1...5, id: \.self) { index in
+                        Text("\(index)").tag(index)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Button("完成") {
                     hasSeenOnboarding = true
                 }
                 .padding(.top, 30)

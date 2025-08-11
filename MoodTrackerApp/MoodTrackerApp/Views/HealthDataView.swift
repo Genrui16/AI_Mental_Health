@@ -4,7 +4,12 @@ import SwiftUI
 /// 健康数据同步视图，用户可在此授权并查看从 Apple Health 获取的数据。
 struct HealthDataView: View {
     @State private var isAuthorized: Bool = false
-    @State private var healthAvailable: Bool = HealthService.shared.isHealthDataAvailable
+    @State private var healthAvailable: Bool = {
+        if #available(iOS 15.0, *) {
+            return HealthService.shared.isHealthDataAvailable
+        }
+        return false
+    }()
     @State private var stepCount: Double = 0
     @State private var sleepHours: Double = 0
     @State private var averageHeartRate: Double = 0
@@ -81,6 +86,16 @@ struct HealthDataView: View {
 
     /// 请求健康数据访问权限
     private func requestAuthorization() {
+        guard hasHealthUsageDescription else {
+            errorMessage = "缺少 HealthKit 权限说明"
+            showError = true
+            return
+        }
+        guard #available(iOS 15.0, *) else {
+            errorMessage = "当前系统版本不支持健康数据"
+            showError = true
+            return
+        }
         HealthService.shared.requestAuthorization { success, error in
             self.isAuthorized = success
             if success {
@@ -94,6 +109,7 @@ struct HealthDataView: View {
 
     /// 获取步数等数据
     private func fetchData() {
+        guard #available(iOS 15.0, *) else { return }
         HealthService.shared.fetchStepCount { count in
             self.stepCount = count
         }
@@ -110,6 +126,11 @@ struct HealthDataView: View {
         if !isAuthorized && healthAvailable {
             requestAuthorization()
         }
+    }
+
+    private var hasHealthUsageDescription: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "NSHealthShareUsageDescription") != nil &&
+        Bundle.main.object(forInfoDictionaryKey: "NSHealthUpdateUsageDescription") != nil
     }
 
     /// 行视图
