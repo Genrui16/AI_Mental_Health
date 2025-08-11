@@ -161,11 +161,24 @@ struct DiaryView: View {
 
     /// 发送情绪评分。
     private func sendRating() {
-        let text = "情绪评分: \(Int(rating))"
+        let score = Int(rating)
+        let text = "情绪评分: \(score)"
         let message = ChatMessage(role: .user, text: text, sentiment: nil)
         currentSession.messages.append(message)
         chatHistory = currentSession.messages
         ChatStore.shared.saveSession(currentSession)
+
+        let mood: String
+        switch score {
+        case ..<3: mood = "非常不好"
+        case 3..<5: mood = "不好"
+        case 5..<7: mood = "一般"
+        case 7..<9: mood = "好"
+        default: mood = "很好"
+        }
+        let log = MoodLog(time: Date(), mood: mood, description: text)
+        MoodLogStore.shared.addLog(log)
+
         showRatingSheet = false
         rating = 5
     }

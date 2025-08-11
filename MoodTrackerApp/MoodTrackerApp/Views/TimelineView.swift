@@ -117,7 +117,7 @@ struct TimelineView: View {
 
     /// 刷新建议日程，调用 AIService 获取个性化建议。
     private func generateSuggestions() {
-        let logs: [MoodLog] = [] // TODO: 收集真实心情日志
+        let logs = MoodLogStore.shared.recentLogs(days: 7)
         AIService.shared.getDailyScheduleSuggestions(from: logs) { result in
             DispatchQueue.main.async {
                 switch result {
