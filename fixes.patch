@@ -1,0 +1,122 @@
+diff --git a/MoodTrackerApp/MoodTrackerApp/Views/TimelineView.swift b/MoodTrackerApp/MoodTrackerApp/Views/TimelineView.swift
+index 1234567..abcdefg 100644
+--- a/MoodTrackerApp/MoodTrackerApp/Views/TimelineView.swift
++++ b/MoodTrackerApp/MoodTrackerApp/Views/TimelineView.swift
+@@ struct TimelineView: View {
+     var body: some View {
+         NavigationView {
+             ZStack {
+@@
+                 .onAppear {
+                     // 如果没有任何示例数据，初始化几条实际活动记录。
+                     if actualEvents.isEmpty {
+                         let sampleTitles = ["早餐和服药", "早间散步", "工作/学习"]
+                         for (idx, title) in sampleTitles.enumerated() {
+                             let newItem = ActualEvent(context: viewContext)
+                             newItem.id = UUID()
+                             newItem.time = Date().addingTimeInterval(Double(idx) * 1800)
+                             newItem.title = title
+                         }
+                         try? viewContext.save()
+                     }
++
++                    // 当视图首次出现且建议为空时，自动刷新一次以避免左侧时间轴为空。
++                    if suggestedEvents.isEmpty {
++                        generateSuggestions()
++                    }
+                 }
+         }
+diff --git a/MoodTrackerApp/MoodTrackerApp/Services/SentimentService.swift b/MoodTrackerApp/MoodTrackerApp/Services/SentimentService.swift
+index 1234567..abcdefg 100644
+--- a/MoodTrackerApp/MoodTrackerApp/Services/SentimentService.swift
++++ b/MoodTrackerApp/MoodTrackerApp/Services/SentimentService.swift
+@@
+ final class SentimentService {
+     static let shared = SentimentService()
+     private init() {}
++
++    /// 自定义中文情感词表，用于弥补 NaturalLanguage 对中文支持有限的问题。
++    private let positiveKeywords: [String] = ["开心", "高兴", "快乐", "满意", "幸福", "喜悦", "兴奋", "期待"]
++    private let negativeKeywords: [String] = ["不开心", "难过", "悲伤", "沮丧", "生气", "愤怒", "压力", "抑郁", "焦虑"]
+@@
+     func analyze(_ text: String) -> Double? {
+-        if #available(iOS 13.0, macOS 10.15, *) {
+-            let tagger = NLTagger(tagSchemes: [.sentimentScore])
+-            tagger.string = text
+-            let (tag, _) = tagger.tag(at: text.startIndex, unit: .paragraph, scheme: .sentimentScore)
+-            if let scoreString = tag?.rawValue, let score = Double(scoreString) {
+-                return score
+-            }
+-            return 0.0
+-        } else {
+-            return nil
+-        }
++        // 先根据自定义词表判断中文情感倾向
++        var score: Double = 0
++        for word in positiveKeywords {
++            if text.contains(word) {
++                score += 1
++            }
++        }
++        for word in negativeKeywords {
++            if text.contains(word) {
++                score -= 1
++            }
++        }
++        if score > 0 {
++            return 0.5
++        } else if score < 0 {
++            return -0.5
++        }
++        // 若词表未覆盖，则调用系统情感分析作为退化方案
++        if #available(iOS 13.0, macOS 10.15, *) {
++            let tagger = NLTagger(tagSchemes: [.sentimentScore])
++            tagger.string = text
++            let (tag, _) = tagger.tag(at: text.startIndex, unit: .paragraph, scheme: .sentimentScore)
++            if let scoreString = tag?.rawValue, let score = Double(scoreString) {
++                return score
++            }
++            return 0.0
++        } else {
++            return nil
++        }
+     }
+@@
+     func label(for score: Double) -> String {
+-        switch score {
+-        case let x where x > 0.2: return "积极"
+-        case let x where x < -0.2: return "消极"
+-        default: return "中性"
+-        }
++        if score > 0.1 {
++            return "积极"
++        } else if score < -0.1 {
++            return "消极"
++        } else {
++            return "中性"
++        }
+     }
+diff --git a/MoodTrackerApp/MoodTrackerApp/Services/AIService.swift b/MoodTrackerApp/MoodTrackerApp/Services/AIService.swift
+index 1234567..abcdefg 100644
+--- a/MoodTrackerApp/MoodTrackerApp/Services/AIService.swift
++++ b/MoodTrackerApp/MoodTrackerApp/Services/AIService.swift
+@@ final class AIService {
+     static let shared = AIService()
+     private init() {}
++
++    /// 默认系统提示，用于指导对话风格和范围
++    private let defaultSystemPrompt = """
++    你是一位温暖而专业的心理健康助理。你会通过提出开放式问题和共情的回应，引导用户表达自己的感受、事件和想法。不要提供医疗诊断或处方，避免使用负面或命令性的语句。当用户描述心情时，请鼓励他们详细记录情绪背后的原因。
++    """
+@@ func chat(with messages: [ChatMessage], userSummary: String? = nil, completion: @escaping (Result<String, Error>) -> Void) {
+-            var messagePayload: [[String: String]] = []
+-            if let summary = userSummary, !summary.isEmpty {
+-                messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(summary)])
+-            }
++            var messagePayload: [[String: String]] = []
++            // 无论是否存在摘要，始终添加默认系统提示，确保模型以友好、反思的语气回复
++            messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(defaultSystemPrompt)])
++            if let summary = userSummary, !summary.isEmpty {
++                messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(summary)])
++            }
+*** End Patch
