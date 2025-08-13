@@ -35,12 +35,14 @@ struct EventEditView: View {
                             event.time = time
                             event.title = title
                             event.notes = notes
+                            event.updatedAt = Date()
                         } else {
                             let newItem = ActualEvent(context: viewContext)
                             newItem.id = UUID()
                             newItem.time = time
                             newItem.title = title
                             newItem.notes = notes
+                            newItem.updatedAt = Date()
                         }
                         try? viewContext.save()
                         dismiss()

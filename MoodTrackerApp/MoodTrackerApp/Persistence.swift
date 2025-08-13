@@ -1,11 +1,12 @@
 import Foundation
 import CoreData
+import CloudKit
 
 /// 管理 Core Data 持久化容器，包含两种事件实体：ActualEvent 与 SuggestedEvent。
 struct PersistenceController {
     static let shared = PersistenceController()
 
-    let container: NSPersistentContainer
+    let container: NSPersistentCloudKitContainer
 
     init(inMemory: Bool = false) {
         // 定义模型
@@ -41,6 +42,12 @@ struct PersistenceController {
         actualNotes.isOptional = true
         actualProperties.append(actualNotes)
 
+        let actualUpdatedAt = NSAttributeDescription()
+        actualUpdatedAt.name = "updatedAt"
+        actualUpdatedAt.attributeType = .dateAttributeType
+        actualUpdatedAt.isOptional = false
+        actualProperties.append(actualUpdatedAt)
+
         actualEntity.properties = actualProperties
 
         // 建议事件实体
@@ -73,6 +80,12 @@ struct PersistenceController {
         suggestedNotes.isOptional = true
         suggestedProperties.append(suggestedNotes)
 
+        let suggestedUpdatedAt = NSAttributeDescription()
+        suggestedUpdatedAt.name = "updatedAt"
+        suggestedUpdatedAt.attributeType = .dateAttributeType
+        suggestedUpdatedAt.isOptional = false
+        suggestedProperties.append(suggestedUpdatedAt)
+
         let suggestedCompleted = NSAttributeDescription()
         suggestedCompleted.name = "isCompleted"
         suggestedCompleted.attributeType = .booleanAttributeType
@@ -84,16 +97,22 @@ struct PersistenceController {
 
         model.entities = [actualEntity, suggestedEntity]
 
-        container = NSPersistentContainer(name: "ScheduleModel", managedObjectModel: model)
-        if inMemory {
-            container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
+        container = NSPersistentCloudKitContainer(name: "ScheduleModel", managedObjectModel: model)
+        if let description = container.persistentStoreDescriptions.first {
+            description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+            description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+            if inMemory {
+                description.url = URL(fileURLWithPath: "/dev/null")
+            }
         }
         container.loadPersistentStores { _, error in
             if let error = error as NSError? {
                 fatalError("Unresolved error \(error), \(error.userInfo)")
             }
         }
-        container.viewContext.automaticallyMergesChangesFromParent = true
+        let ctx = container.viewContext
+        ctx.automaticallyMergesChangesFromParent = true
+        ctx.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
     }
 }
 
@@ -105,6 +124,7 @@ public class ActualEvent: NSManagedObject {
     @NSManaged public var time: Date
     @NSManaged public var title: String
     @NSManaged public var notes: String?
+    @NSManaged public var updatedAt: Date
 }
 
 @objc(SuggestedEvent)
@@ -114,5 +134,6 @@ public class SuggestedEvent: NSManagedObject {
     @NSManaged public var title: String
     @NSManaged public var notes: String?
     @NSManaged public var isCompleted: Bool
+    @NSManaged public var updatedAt: Date
 }
 

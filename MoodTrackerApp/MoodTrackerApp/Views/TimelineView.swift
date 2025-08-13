@@ -127,16 +127,17 @@ struct TimelineView: View {
         }
         .onAppear {
             // 如果没有任何示例数据，初始化几条实际活动记录。
-            if actualEvents.isEmpty {
-                let sampleTitles = ["早餐和服药", "早间散步", "工作/学习"]
-                for (idx, title) in sampleTitles.enumerated() {
-                    let newItem = ActualEvent(context: viewContext)
-                    newItem.id = UUID()
-                    newItem.time = Date().addingTimeInterval(Double(idx) * 1800)
-                    newItem.title = title
-                }
-                try? viewContext.save()
-            }
+                    if actualEvents.isEmpty {
+                        let sampleTitles = ["早餐和服药", "早间散步", "工作/学习"]
+                        for (idx, title) in sampleTitles.enumerated() {
+                            let newItem = ActualEvent(context: viewContext)
+                            newItem.id = UUID()
+                            newItem.time = Date().addingTimeInterval(Double(idx) * 1800)
+                            newItem.title = title
+                            newItem.updatedAt = Date()
+                        }
+                        try? viewContext.save()
+                    }
 
             // 当视图首次出现且建议为空时，自动刷新一次以避免左侧时间轴为空。
             if suggestedEvents.isEmpty {
@@ -210,6 +211,7 @@ struct TimelineView: View {
                         newItem.title = suggestion.title
                         newItem.notes = suggestion.notes
                         newItem.isCompleted = false
+                        newItem.updatedAt = Date()
                     }
                     try? viewContext.save()
                     if notificationsEnabled {
@@ -229,6 +231,7 @@ struct TimelineView: View {
                         newItem.title = suggestion.title
                         newItem.notes = suggestion.notes
                         newItem.isCompleted = false
+                        newItem.updatedAt = Date()
                     }
                     try? viewContext.save()
                     if notificationsEnabled {
@@ -272,6 +275,7 @@ struct TimelineView: View {
 
     private func toggleCompletion(_ event: SuggestedEvent) {
         event.isCompleted.toggle()
+        event.updatedAt = Date()
         try? viewContext.save()
         let key = completionCountKey(for: Date())
         var count = UserDefaults.standard.integer(forKey: key)
