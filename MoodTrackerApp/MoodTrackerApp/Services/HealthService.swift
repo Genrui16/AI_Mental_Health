@@ -105,5 +105,84 @@ final class HealthService {
         }
         healthStore.execute(query)
     }
+
+    /// 获取最近 7 天的每日步数总和
+    @available(iOS 15.0, *)
+    func fetchDailySteps7D() async throws -> [(Date, Int)] {
+        let cal = Calendar.current
+        let end = cal.startOfDay(for: Date()).addingTimeInterval(24 * 60 * 60)
+        let start = cal.date(byAdding: .day, value: -7, to: end)!
+        var results: [(Date, Int)] = []
+
+        guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let interval = DateComponents(day: 1)
+        let query = HKStatisticsCollectionQuery(
+            quantityType: stepType,
+            quantitySamplePredicate: predicate,
+            options: .cumulativeSum,
+            anchorDate: cal.startOfDay(for: start),
+            intervalComponents: interval
+        )
+
+        return try await withCheckedThrowingContinuation { cont in
+            query.initialResultsHandler = { _, coll, err in
+                if let err = err {
+                    return cont.resume(throwing: err)
+                }
+                coll?.enumerateStatistics(from: start, to: end) { stats, _ in
+                    let date = stats.startDate
+                    let value = Int(stats.sumQuantity()?.doubleValue(for: .count()) ?? 0)
+                    results.append((date, value))
+                }
+                cont.resume(returning: results)
+            }
+            self.healthStore.execute(query)
+        }
+    }
+
+    /// 获取最近 7 天每日睡眠时长（分钟）
+    @available(iOS 15.0, *)
+    func fetchSleepMinutes7D() async throws -> [(Date, Int)] {
+        let cal = Calendar.current
+        let end = cal.startOfDay(for: Date()).addingTimeInterval(24 * 60 * 60)
+        let start = cal.date(byAdding: .day, value: -7, to: end)!
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let asleepVals: Set<Int> = [
+            HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
+            HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+            HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
+            HKCategoryValueSleepAnalysis.asleepREM.rawValue
+        ]
+
+        return try await withCheckedThrowingContinuation { cont in
+            var bucket: [Date: Int] = [:]
+            guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
+                return cont.resume(returning: [])
+            }
+            let q = HKSampleQuery(
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, samples, err in
+                if let err = err {
+                    return cont.resume(throwing: err)
+                }
+                samples?.compactMap { $0 as? HKCategorySample }.forEach { s in
+                    guard asleepVals.contains(s.value) else { return }
+                    let day = cal.startOfDay(for: s.startDate)
+                    let minutes = Int(s.endDate.timeIntervalSince(s.startDate) / 60)
+                    bucket[day, default: 0] += minutes
+                }
+                let sorted = bucket.keys.sorted().map { ($0, bucket[$0] ?? 0) }
+                cont.resume(returning: sorted)
+            }
+            self.healthStore.execute(q)
+        }
+    }
 }
 #endif
