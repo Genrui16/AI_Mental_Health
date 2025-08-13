@@ -11,6 +11,11 @@ final class AIService {
     static let shared = AIService()
     private init() {}
 
+    /// 默认系统提示，用于指导对话风格和范围
+    private let defaultSystemPrompt = """
+    你是一位温暖而专业的心理健康助理。你会通过提出开放式问题和共情的回应，引导用户表达自己的感受、事件和想法。不要提供医疗诊断或处方，避免使用负面或命令性的语句。当用户描述心情时，请鼓励他们详细记录情绪背后的原因。
+    """
+
     private let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
     private let model = "gpt-3.5-turbo"
 
@@ -124,6 +129,8 @@ final class AIService {
         // 控制历史长度，避免超过 token 限制
         let recent = Array(messages.suffix(10))
         var messagePayload: [[String: String]] = []
+        // 无论是否存在摘要，始终添加默认系统提示，确保模型以友好、反思的语气回复
+        messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(defaultSystemPrompt)])
         if let summary = userSummary, !summary.isEmpty {
             messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(summary)])
         }
