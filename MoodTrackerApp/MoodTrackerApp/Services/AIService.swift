@@ -11,6 +11,9 @@ final class AIService {
     static let shared = AIService()
     private init() {}
 
+    /// 负责统计用户对不同建议类型的反馈
+    private let suggestionAnalytics = SuggestionAnalytics()
+
     /// 默认系统提示，用于指导对话风格和范围
     private let defaultSystemPrompt = """
     你是一位温暖而专业的心理健康助理。你会通过提出开放式问题和共情的回应，引导用户表达自己的感受、事件和想法。不要提供医疗诊断或处方，避免使用负面或命令性的语句。当用户描述心情时，请鼓励他们详细记录情绪背后的原因。
@@ -41,6 +44,8 @@ final class AIService {
         if let context = context, !context.isEmpty {
             prompt += "\n附加信息:\n\(PrivacyFilter.sanitize(context))"
         }
+        let systemPrompt = makeSystemPrompt(userName: "用户", analytics: suggestionAnalytics)
+
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -48,6 +53,7 @@ final class AIService {
         let body: [String: Any] = [
             "model": model,
             "messages": [
+                ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": prompt]
             ]
         ]
