@@ -137,6 +137,11 @@ struct TimelineView: View {
                 }
                 try? viewContext.save()
             }
+
+            // 当视图首次出现且建议为空时，自动刷新一次以避免左侧时间轴为空。
+            if suggestedEvents.isEmpty {
+                generateSuggestions()
+            }
         }
     }
 
