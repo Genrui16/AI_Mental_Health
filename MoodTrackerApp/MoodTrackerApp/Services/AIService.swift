@@ -34,6 +34,9 @@ final class AIService {
             let desc = PrivacyFilter.sanitize(log.description)
             return "\(formatter.string(from: log.time)) - \(log.mood): \(desc)"
         }.joined(separator: "\n")
+        let scheduleSystemPrompt = """
+        你是一位日程优化助理。请在建议中体现“降频”和“改时段”策略，并避免连续两条建议属于同一类型。
+        """
         var prompt = """
         基于以下心情日志，生成三条日程建议，以 JSON 数组返回，每个元素包含 minutes_from_now(整数, 分钟) 与 title:
         \n\(logsText)
@@ -48,6 +51,7 @@ final class AIService {
         let body: [String: Any] = [
             "model": model,
             "messages": [
+                ["role": "system", "content": scheduleSystemPrompt],
                 ["role": "user", "content": prompt]
             ]
         ]
@@ -121,75 +125,101 @@ final class AIService {
             return
         }
 
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        // 控制历史长度，避免超过 token 限制
-        let recent = Array(messages.suffix(10))
-        var messagePayload: [[String: String]] = []
-        // 无论是否存在摘要，始终添加默认系统提示，确保模型以友好、反思的语气回复
-        messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(defaultSystemPrompt)])
-        if let summary = userSummary, !summary.isEmpty {
-            messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(summary)])
-        }
-        for msg in recent {
-            let role = msg.role == .user ? "user" : "assistant"
-            messagePayload.append(["role": role, "content": PrivacyFilter.sanitize(msg.text)])
-        }
-        let body: [String: Any] = [
-            "model": model,
-            "messages": messagePayload
-        ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 25
-        config.timeoutIntervalForResource = 30
-        let session = URLSession(configuration: config)
-        let task = session.dataTask(with: request) { data, response, error in
-            if let error = error {
-                completion(.failure(error))
+        let userText = messages.last?.text ?? ""
+        // 先对用户输入进行审核
+        ModerationService.shared.check(userText) { result in
+            let flagged = result.flaggedCategories
+            if flagged.contains("self-harm") || flagged.contains("sexual/minors") {
+                completion(.success("听起来你正在经历困难，建议立即联系身边可信赖的人或专业求助渠道。"))
+                return
+            } else if !flagged.isEmpty {
+                completion(.failure(AIServiceError.inappropriateContent("检测到不当内容")))
                 return
             }
-            guard let httpResponse = response as? HTTPURLResponse else {
-                completion(.failure(AIServiceError.invalidResponse))
-                return
+            performRequest(apiKey: apiKey)
+        }
+
+        func performRequest(apiKey: String) {
+            var request = URLRequest(url: endpoint)
+            request.httpMethod = "POST"
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+            // 控制历史长度，避免超过 token 限制
+            let recent = Array(messages.suffix(10))
+            var messagePayload: [[String: String]] = []
+            // 无论是否存在摘要，始终添加默认系统提示，确保模型以友好、反思的语气回复
+            messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(defaultSystemPrompt)])
+            if let summary = userSummary, !summary.isEmpty {
+                messagePayload.append(["role": "system", "content": PrivacyFilter.sanitize(summary)])
             }
-            guard (200...299).contains(httpResponse.statusCode) else {
+            for msg in recent {
+                let role = msg.role == .user ? "user" : "assistant"
+                messagePayload.append(["role": role, "content": PrivacyFilter.sanitize(msg.text)])
+            }
+            let body: [String: Any] = [
+                "model": model,
+                "messages": messagePayload
+            ]
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 25
+            config.timeoutIntervalForResource = 30
+            let session = URLSession(configuration: config)
+            let task = session.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    completion(.failure(AIServiceError.invalidResponse))
+                    return
+                }
+                guard (200...299).contains(httpResponse.statusCode) else {
+                    if
+                        let data = data,
+                        let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data)
+                    {
+                        completion(.failure(AIServiceError.api(apiError.error.message)))
+                    } else {
+                        completion(.failure(AIServiceError.httpStatus(httpResponse.statusCode)))
+                    }
+                    return
+                }
+                guard let data = data else {
+                    completion(.failure(AIServiceError.noData))
+                    return
+                }
                 if
-                    let data = data,
-                    let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data)
+                    let response = try? JSONDecoder().decode(ChatResponse.self, from: data),
+                    let text = response.choices.first?.message.content
                 {
+                    let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // 对模型输出进行审核
+                    ModerationService.shared.check(cleaned) { postResult in
+                        let flaggedOut = postResult.flaggedCategories
+                        if flaggedOut.contains("self-harm") || flaggedOut.contains("sexual/minors") {
+                            completion(.success("如果你正经历自伤或其他危机，请联系当地的紧急服务或专业援助。"))
+                        } else if !flaggedOut.isEmpty {
+                            completion(.failure(AIServiceError.inappropriateContent("检测到不当内容")))
+                        } else {
+                            let review = SafetyFilter.review(cleaned)
+                            if review.isSafe {
+                                completion(.success(cleaned))
+                            } else {
+                                completion(.failure(AIServiceError.inappropriateContent(review.reason ?? "检测到不当内容")))
+                            }
+                        }
+                    }
+                } else if let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data) {
                     completion(.failure(AIServiceError.api(apiError.error.message)))
                 } else {
-                    completion(.failure(AIServiceError.httpStatus(httpResponse.statusCode)))
+                    completion(.failure(AIServiceError.decoding))
                 }
-                return
             }
-            guard let data = data else {
-                completion(.failure(AIServiceError.noData))
-                return
-            }
-            if
-                let response = try? JSONDecoder().decode(ChatResponse.self, from: data),
-                let text = response.choices.first?.message.content
-            {
-                let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let review = SafetyFilter.review(cleaned)
-            if review.isSafe {
-                completion(.success(cleaned))
-            } else {
-                completion(.failure(AIServiceError.inappropriateContent(review.reason ?? "检测到不当内容")))
-            }
-            } else if let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data) {
-                completion(.failure(AIServiceError.api(apiError.error.message)))
-            } else {
-                completion(.failure(AIServiceError.decoding))
-            }
+            task.resume()
         }
-        task.resume()
     }
 }
 

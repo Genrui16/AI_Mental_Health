@@ -19,7 +19,11 @@ final class ConversationSummaryService {
 
     /// 使用简单的关键词统计生成摘要。
     private func generateSummary(from sessions: [ChatSession]) -> String {
-        let texts = sessions.flatMap { $0.messages }.filter { $0.role == .user }.map { $0.text }
+        // 仅统计最近 14 天的用户消息
+        let calendar = Calendar.current
+        let startDate = calendar.date(byAdding: .day, value: -14, to: Date()) ?? Date()
+        let recentSessions = sessions.filter { $0.date >= startDate }
+        let texts = recentSessions.flatMap { $0.messages }.filter { $0.role == .user }.map { $0.text }
         guard !texts.isEmpty else { return "" }
         let joined = texts.joined(separator: " ")
         #if canImport(NaturalLanguage)
@@ -27,14 +31,18 @@ final class ConversationSummaryService {
         tagger.string = joined
         var counts: [String: Int] = [:]
         let options: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .omitOther]
-        tagger.enumerateTags(in: joined.startIndex..<joined.endIndex, unit: .word, scheme: .lemma, options: options) { tag, tokenRange in
+        tagger.enumerateTags(in: joined.startIndex..<joined.endIndex, unit: .word, scheme: .lemma, options: options) { tag, _ in
             if let lemma = tag?.rawValue {
                 counts[lemma, default: 0] += 1
             }
             return true
         }
-        let keywords = counts.sorted { $0.value > $1.value }.prefix(5).map { $0.key }
-        return "常提到: " + keywords.joined(separator: ", ")
+        // 过滤出现次数少于 5 次的关键词，并取 Top3
+        let keywords = counts.filter { $0.value >= 5 }
+            .sorted { $0.value > $1.value }
+            .prefix(3)
+            .map { $0.key }
+        return keywords.isEmpty ? "" : "常提到: " + keywords.joined(separator: ", ")
         #else
         // 如果不支持 NaturalLanguage，则简单截取最近消息。
         return texts.suffix(5).joined(separator: ", ")
