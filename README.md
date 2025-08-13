@@ -27,6 +27,7 @@
 - **平台**：iOS（iPhone，建议 iOS 16+）
 - **数据与服务**：HealthKit、Core Data / SQLite、本地通知
 - **AI 支持**：自然语言处理与情感分析（Core ML 或 API 调用）
+- **内容审核**：通过 OpenAI Moderations API 保障对话安全
 
 ## 部署与运行
 

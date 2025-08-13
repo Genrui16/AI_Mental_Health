@@ -35,12 +35,10 @@
   - 主题色/字体大小等个性化选项（占位可扩展）
 
 ## 6) 对话安全过滤
-- 新增 `Services/SafetyFilter.swift`，对 AI 回复做二次 **本地关键字** 审核。
+- 新增 `Services/ModerationService.swift`，接入 **OpenAI Moderations API** 进行内容审核。
 - `Services/AIService.swift`：
-  - 对 `chat(...)` 的回复在返回前调用 `SafetyFilter.review(...)`；若判定风险，返回 `AIServiceError.inappropriateContent(…)`。
+  - 在发送前与展示前分别调用 `ModerationService.check(...)`；若判定风险，返回 `AIServiceError.inappropriateContent(…)`。
   - 统一设置 **网络超时**（请求 25s、资源 30s）。
-
-> 如需接入 OpenAI Moderations API，可将 `SafetyFilter` 替换为远端审核逻辑。
 
 ## 7) 时间轴建议的动态调整
 - `TimelineView` 的提示上下文包含执行反馈（已完成/未完成），模型将据此给出更契合的建议。
